@@ -2,13 +2,13 @@
 
 import requests, json, re, sys, logging
 
-import fc4
+import fcrepo4
 
 fcurl = 'http://localhost:8080/fcrepo'
 user = 'fedoraAdmin'
 password = 'secret3'
 
-repo = fc4.Repository(fcurl, user, password, loglevel=logging.DEBUG)
+repo = fcrepo4.Repository(fcurl, user, password, loglevel=logging.DEBUG)
 
 lg = logging.getLogger(__name__)
 lg.setLevel(logging.DEBUG)

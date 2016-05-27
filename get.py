@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
-import fc4, requests
+import fcrepo4, requests, logging
 
-fcurl = 'http://localhost:8080/fcrepo'
-user = 'fedoraAdmin'
-password = 'secret3'
+#fcurl = 'http://localhost:8080/fcrepo'
+#user = 'fedoraAdmin'
+#password = 'secret3'
 
-repo = fc4.Repository(fcurl, user, password)
+print("Connecting")
 
-response = repo.get('/fcr:accessroles', format='application/ld+json')
+repo = fcrepo4.Repository(loglevel=logging.DEBUG)
+
+print(repo)
+
+response = repo.get('/')
 
 print(response.text)
