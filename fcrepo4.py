@@ -17,7 +17,7 @@ for c in r.children:
 
 """
 
-import requests, os.path, mimetypes, json, yaml, logging
+import requests, os.path, mimetypes, json, yaml, logging, re
 
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
@@ -104,6 +104,9 @@ class Repository(object):
         self.uri = configd['uri']
         self.user = configd['user']
         self.password = configd['password']
+        if self.uri[:-1] != '/':
+            self.uri += '/'
+        self.pathre = re.compile("^{}rest/(.*)$".format(self.uri))
 
     def load_config(self, conffile):
         cf = None
@@ -128,13 +131,14 @@ class Repository(object):
     def uri2path(self, uri):
         """Converts a full uri to a REST path.
 
-Throws an excepthion if the uri doesn't match this repository
+Throws an exception if the uri doesn't match this repository
 """
         m = self.pathre.match(uri)
         if m:
             return m.group(1)
         else:
-            raise E
+            raise URIError("Path mismatch - couldn't parse {} to a path in {}".format(uri, self.uri))
+        
         
     def api(self, path, method='GET', headers=None, data=None):
         """
@@ -166,6 +170,7 @@ Default method is GET.
             return path + '/' + s
 
     def dc_rdf(self, title, description, creator):
+        """A utility method for building a basic RDF graph with dc metadata"""
         g = Graph()
 
         obj = URIRef("")
@@ -249,8 +254,6 @@ Default method is GET.
 class Resource(object):
     """Object representing a resource.
 
-(Laziness: don't make requests until we need to?)
-    
 Attributes
     repo (Repository): the repository
     path (str): its path (not URI)
