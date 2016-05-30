@@ -104,7 +104,7 @@ class Repository(object):
         self.uri = configd['uri']
         self.user = configd['user']
         self.password = configd['password']
-        if self.uri[:-1] != '/':
+        if self.uri[-1:] != '/':
             self.uri += '/'
         self.pathre = re.compile("^{}rest/(.*)$".format(self.uri))
 
@@ -126,7 +126,12 @@ class Repository(object):
 
     def path2uri(self, path):
         """Converts a REST API path to a url"""
-        return self.uri + 'rest/' + path
+        uri = self.uri + 'rest'
+        if not path:
+            return uri
+        if path[0] != '/':
+            return uri + '/' + path
+        return uri + path
 
     def uri2path(self, uri):
         """Converts a full uri to a REST path.
@@ -140,14 +145,13 @@ Throws an exception if the uri doesn't match this repository
             raise URIError("Path mismatch - couldn't parse {} to a path in {}".format(uri, self.uri))
         
         
-    def api(self, path, method='GET', headers=None, data=None):
+    def api(self, uri, method='GET', headers=None, data=None):
         """
 Generic api call with an HTTP method, target URL and headers, data (for
 plain POST) or files (for file uploads)
 
 Default method is GET.
 """
-        uri = self.path2uri(path)
         if method in METHODS:
             m = METHODS[method]
             self.logger.debug("API {} {}".format(method, uri))
@@ -184,15 +188,15 @@ Default method is GET.
     
 
         
-    def get(self, path):
-        response = self.api(path, headers={ 'Accept': RDF_MIME })
+    def get(self, uri):
+        response = self.api(uri, headers={ 'Accept': RDF_MIME })
         if response.status_code == requests.codes.ok:
-            resource = Resource(self, path)
+            resource = Resource(self, uri)
             resource._parse_rdf(response.text)
             return resource
         else:
-            self.logger.error("get {} returned HTTP status {}".format(path, response.status_code))
-            return None
+            message = "get {} returned HTTP status {}".format(uri, response.status_code)
+            raise ResourceError(uri, response.status_code, message)
     
     def new_container(self, path, metadata):
         """Create a new container and return the response as JSON"""
@@ -257,7 +261,7 @@ class Resource(object):
 Attributes
     repo (Repository): the repository
     path (str): its path (not URI)
-    graph (Graph): its RDF graph
+    rdf (Graph): its RDF graph
     """
 
     def __init__(self, repo, path):
