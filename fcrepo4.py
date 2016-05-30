@@ -1,14 +1,26 @@
 """
-Python objects for interacting with Fedora Commons 4 via its web API
+A Pythonic interface to Fedora Commons 4
+
+Repository - connection to an FCREPO
+
+Resource -> path
+         -> status (tombstones etc)
+         -> access
+         -> triples (RDF metadata)
+         -> children (list of child resources)
+         -> content (bytes)
+
+r = repo.get(path)
+
+for c in r.children:
+    
+
 """
 
-import requests, os.path, mimetypes, json, yaml
+import requests, os.path, mimetypes, json, yaml, logging
 
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
-
-
-import sys, logging
 
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
 
@@ -24,13 +36,56 @@ METHODS = {
 #    'COPY': requests.copy
 }
 
+# the following are what the code uses as a serialisation format for
+# RDF between the repository and the Resource objects: the first is
+# the mime type requested of the server, the second is the rdflib parser
     
+RDF_MIME = 'text/turtle'
+RDF_PARSE = 'turtle'    
+
+LDP_CONTAINS = 'http://www.w3.org/ns/ldp#contains'
+
+
+class Error(Exception):
+    """Base class for exceptions.
+
+    Attributes:
+        message (str): the error message"""
+
+    def __init__(self, message):
+        self.message = message
+
+        
+class URIError(Error):
+    """Error for malformed URIs.
+
+    Attributes:
+        message (str)
+    """
+    pass
+
+
+class ResourceError(Error):
+    """Base class for API/Resource errors.
+
+    Attributes:
+        uri (str) -- the uri of the resource
+        status (int) -- the HTTP status returned by the request
+        message (str) -- an error messsage
+"""
+
+    def __init__(self, uri, status, message):
+        self.uri = uri
+        self.status = status
+        self.message = message
+
+
 
 class Repository(object):
     """Connection to an FC4 repository."""
     
     def __init__(self, config='config.yml', loglevel=logging.WARN):
-        """Store the url, login and password"""
+        """Store the uri, login and password"""
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(loglevel)
         configd = {}
@@ -39,35 +94,47 @@ class Repository(object):
             configd = config
         else:
             configd = self.load_config(config)
-        missing = False
-        for name in [ 'url', 'user', 'password' ]:
-            if name not in configd:
-                self.logger.error("Missing config value '{}'".format(name))
-                missing = True
-        if missing:
-            self.logger.critical("Config missing")
-            sys.exit(-1)
-        self.url = configd['url']
+        fields = [ 'uri', 'user', 'password' ]
+        m = [ f for f in fields if f not in configd ]
+        if m:
+            message = "Config values missing: {}".format(', '.join(m))
+            self.logger.critical(message)
+            raise Error(message)
+        
+        self.uri = configd['uri']
         self.user = configd['user']
         self.password = configd['password']
-            
 
     def load_config(self, conffile):
         cf = None
-
+        message = ''
         with open(conffile) as cf:
             try:
                 cf = yaml.load(cf)
             except yaml.YAMLError as exc:
-                self.logger.error("%s parse error: %s" % ( CONFIG, exc ))
+                message = "YAML {} parse error: {}".format(conffile, exc)
                 if hasattr(exc, 'problem_mark'):
                     mark = exc.problem_mark
-                    self.logger.error("Error position: (%s:%s)" % (mark.line + 1, mark.column + 1))
+                    message += "Error position: {}:{}".format(mark.line + 1, mark.column + 1)
         if not cf:
-            self.logger.critical("Config error")
-            sys.exit(-1)
+            self.logger.critical(message)
+            raise Error(message)
         return cf
 
+    def path2uri(self, path):
+        """Converts a REST API path to a url"""
+        return self.uri + 'rest/' + path
+
+    def uri2path(self, uri):
+        """Converts a full uri to a REST path.
+
+Throws an excepthion if the uri doesn't match this repository
+"""
+        m = self.pathre.match(uri)
+        if m:
+            return m.group(1)
+        else:
+            raise E
         
     def api(self, path, method='GET', headers=None, data=None):
         """
@@ -76,17 +143,17 @@ plain POST) or files (for file uploads)
 
 Default method is GET.
 """
-        url = self.url + 'rest/' + path
+        uri = self.path2uri(path)
         if method in METHODS:
             m = METHODS[method]
-            self.logger.debug("API {} {}".format(method, url))
+            self.logger.debug("API {} {}".format(method, uri))
             if headers:
                 self.logger.debug("headers={}".format(headers))
             if data:
                 self.logger.debug("data={}".format(data))
                 with open("dump.rdf", "wb") as d:
                     d.write(data)
-            r = m(url, auth=(self.user, self.password), headers=headers, data=data)
+            r = m(uri, auth=(self.user, self.password), headers=headers, data=data)
             return r
         else:
             return None
@@ -108,18 +175,24 @@ Default method is GET.
         g.add( (obj, DC.creator, Literal(creator)) )
 
         g.bind("dc", DC)
-        return g.serialize(format='text/turtle')
+        return g.serialize(format=RDF_MIME)
     
 
         
-    def get(self, path, format='application/ld+json'):
-        response = self.api(path, headers={ 'Accept': format })
-        return response
+    def get(self, path):
+        response = self.api(path, headers={ 'Accept': RDF_MIME })
+        if response.status_code == requests.codes.ok:
+            resource = Resource(self, path)
+            resource._parse_rdf(response.text)
+            return resource
+        else:
+            self.logger.error("get {} returned HTTP status {}".format(path, response.status_code))
+            return None
     
     def new_container(self, path, metadata):
         """Create a new container and return the response as JSON"""
         rdf = self.dc_rdf(metadata['title'], metadata['description'], metadata['creator'])
-        response = self.api(path, method='PUT', headers={'Content-Type': 'text/turtle'}, data=rdf)
+        response = self.api(path, method='PUT', headers={'Content-Type': RDF_MIME}, data=rdf)
         return response
 
     def ensure_container(self, path, metadata):
@@ -170,3 +243,42 @@ Default method is GET.
         response = self.api(self.suffix(path, 'fcr:tombstone'), method="DELETE")
         self.logger.debug(response.status_code)
         
+
+
+
+class Resource(object):
+    """Object representing a resource.
+
+(Laziness: don't make requests until we need to?)
+    
+Attributes
+    repo (Repository): the repository
+    path (str): its path (not URI)
+    graph (Graph): its RDF graph
+    """
+
+    def __init__(self, repo, path):
+        """
+Create a new Resource. Shouldn't be used by calling code - use the get and
+children methods for that
+"""
+        self.repo = repo
+        self.path = path
+        self.uri = self.repo.path2uri(self.path)
+        
+        
+    def _parse_rdf(self, rdf):
+        """Parse the serialised RDF content from FC as an rdflib Graph"""
+        self.rdf = Graph()
+        self.rdf.parse(data=rdf, format=RDF_PARSE)
+
+    def bytes(self):
+        """TBD - stream the resources' bytes"""
+        pass
+
+    def children(self):
+        """Returns a list of paths of this resource's children"""
+        self.children = [ o for (_, p, o) in self.rdf if p == LDP_CONTAINS ]
+        return self.children
+                
+            
