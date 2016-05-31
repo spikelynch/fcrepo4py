@@ -64,19 +64,32 @@ class URIError(Error):
     """
     pass
 
+class ConflictError(Error):
+    """Error for conflicts: like trying to create a path which exists"""
+    pass
 
 class ResourceError(Error):
     """Base class for API/Resource errors.
 
     Attributes:
         uri (str) -- the uri of the resource
-        status (int) -- the HTTP status returned by the request
+        response (requests.Response) -- the HTTP response
+        status_code (int) -- the HTTP status returned by the request
+        reason (str) -- the text version of the HTTP status code
         message (str) -- an error messsage
 """
 
-    def __init__(self, uri, status, message):
+    def __init__(self, uri, response, message):
+        """Parameters:
+
+        uri (str): the uri of the resource
+        response (requests.Response): the HTTP response
+        message (str): additional message from the code throwing the exception
+        """
         self.uri = uri
-        self.status = status
+        self.response = response
+        self.status_code = response.status_code
+        self.reason = response.reason
         self.message = message
 
 
@@ -152,6 +165,7 @@ plain POST) or files (for file uploads)
 
 Default method is GET.
 """
+        self.uri2path(uri)  # safety check: throw URI error if it's bad
         if method in METHODS:
             m = METHODS[method]
             self.logger.debug("API {} {}".format(method, uri))
@@ -173,22 +187,38 @@ Default method is GET.
         else:
             return path + '/' + s
 
-    def dc_rdf(self, title, description, creator):
-        """A utility method for building a basic RDF graph with dc metadata"""
+    def dc_rdf(self, md):
+        """A utility method for building a basic DC RDF graph from a dict"""
         g = Graph()
 
         obj = URIRef("")
 
-        g.add( (obj, DC.title, Literal(title)) )
-        g.add( (obj, DC.description, Literal(description)) )
-        g.add( (obj, DC.creator, Literal(creator)) )
+        g.add( (obj, DC.title, Literal(md['title'])) )
+        g.add( (obj, DC.description, Literal(md['description'])) )
+        g.add( (obj, DC.creator, Literal(md['creator'])) )
 
         g.bind("dc", DC)
-        return g.serialize(format=RDF_MIME)
-    
+        return g
 
+    def build_rdf(self, metadata, bind=None):
+        """Takes a set of tuples and builds an RDF Graph object."""
+
+        g = Graph()
+        obj = URIRef("")
+        for ( p, o ) in metadata:
+            g.add((obj, p, o))
+        if bind:
+            for abbrev, namespace in bind.items():
+                g.bind(abbrev, namespace)
+        return g
         
     def get(self, uri):
+        """The basic method for retrieving a resource.
+
+        Fetches the metadata for the resource at uri, raises a ResourceError
+        if the status code was something other than ok
+        """
+        
         response = self.api(uri, headers={ 'Accept': RDF_MIME })
         if response.status_code == requests.codes.ok:
             resource = Resource(self, uri)
@@ -196,37 +226,111 @@ Default method is GET.
             return resource
         else:
             message = "get {} returned HTTP status {}".format(uri, response.status_code)
-            raise ResourceError(uri, response.status_code, message)
-    
-    def new_container(self, path, metadata):
-        """Create a new container and return the response as JSON"""
-        rdf = self.dc_rdf(metadata['title'], metadata['description'], metadata['creator'])
-        response = self.api(path, method='PUT', headers={'Content-Type': RDF_MIME}, data=rdf)
-        return response
+            raise ResourceError(uri, response, message)
 
-    def ensure_container(self, path, metadata):
-        """Check to see if a path exists and create a container there if it doesn't"""
-        response = self.get(path)
-        if response.status_code == requests.codes.ok:
-            # this should probably update the rdf
-            print("path {} already exists found".format(path))
-            return response
-        print("path {} - trying to create".format(path))
-        return self.new_container(path, metadata)
+    def add_container(self, uri, metadata, slug=None, path=None, force=False):
+        """Add a new container inside an existing one.
+
+        Parameters:
+        uri (str) -- the path of the container to add to
+        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
+        path (str) -- path to new container, relative to uri
+        slug (str) -- slug of new container
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        Using the path parameter will try to create a deterministic path. If
+        the path already exists and force is False (the default), a
+        ConflictError is raised. If the path already exists and force is True,
+        the existing path is deleted and obliterated and a new container is
+        created.
+
+        """
+        if path:
+            return self._add_specified_path(uri, metadata, path, force)
+        else:
+            return self._add_fedora_path(uri, metadata, slug)
+
+
+    def _add_specified_path(self, uri, metadata, path, force):
+        """Internal method to add a path deterministically."""
+        
+        headers = { 'Content-Type': RDF_MIME }
+        if type(metadata) == Graph:
+            rdf = metadata.serialize(format=RDF_MIME)
+        else:
+            rdf = metadata #FIXME - make sure Content-Type matches this
+        newpath = uri + path
+        exists = None
+        try:
+            exists = self.get(newpath)
+        except ResourceError as re:
+            if re.status_code == requests.codes.not_found:
+                # not found is good
+                self.logger.debug("Checked for {} - not found".format(newpath))
+                pass
+            else:
+                raise re
+        if exists:
+            if force:
+                self.logger.debug("Force is True: obliterating {}".format(newpath))
+                self.delete(newpath)
+                self.obliterate(newpath)
+            else:
+                message = "Path {} already exists: can't re-create without force".format(newpath)
+                self.logger.error(message)
+                raise ConflictError(message)
+        response = self.api(newpath, method='PUT', headers=headers, data=rdf)
+        if response.status_code < 400: #FIXME
+            self.logger.debug("Returned status code {}".format(response.status_code))
+            resource = Resource(self, uri)  #FIXME - inject the metadata
+            self.logger.debug("resource = {}".format(resource))
+            return resource
+        else:
+            message = "Add resource with PUT to {} failed: {} {}".format(newpath, response.status_code, response.reason)
+            self.logger.error(message)            
+            raise ResourceError(newpath, response, message) 
+            
+
     
-    def add_file(self, path, filename):
-        """Add an object to a container"""
+    def _add_fedora_path(self, uri, metadata, slug=None):
+        """Internal method to add an autogenerated or slugged Fedora path."""
+        
+        headers = { 'Content-Type': RDF_MIME }
+        if type(metadata) == Graph:
+            rdf = metadata.serialize(format=RDF_MIME)
+        else:
+            rdf = metadata # FIXME make sure Content-Type matches
+        if slug:
+            headers['Slug'] = slug
+        response = self.api(uri, method='POST', headers=headers, data=rdf)
+        if response.status_code < 400: #FIXME
+            self.logger.debug("Returned status code {}".format(response.status_code))
+            return Resource(self, g)
+        else:
+            message = "Add resource with POST to {} failed: {} {}".format(uri, response.status_code, response.reason)
+            self.logger.error(message)            
+            raise ResourceError(uri, response, message) 
+ 
+
+
+        
+    def add_binary(self, uri, metadata, filename, slug=None):
+        """Add a file to a resource"""
 
         basename = os.path.basename(filename)
+        if not slug:
+            slug = basename
         fh = open(filename, 'rb')
-        mimetype = mimetypes.guess_type(filename)
         headers = {}
         headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
-        headers['Content-Type'], _ = mimetype
-        headers['Slug'] = basename
-        print(headers)
+        headers['Content-Type'], _ = mimetypes.guess_type(filename)
+        headers['Slug'] = slug
         response = self.api(path, method='POST', headers=headers, data=fh)
-        return response
+        if response.status_code < 400:
+            self.logger.debug("Returned status code {}".format(response.status_code))
+            return Resource(self, path)
+        else:
+            raise ResourceError(uri, response, "add_binary failed") 
 
     def get_access(self, path):
         """Gets the access roles for the specified path"""
@@ -243,14 +347,30 @@ Default method is GET.
         print("After set: {}".format(response.status_code))
 
 
-    def delete(self, path):
-        """Deletes a resource"""
-        response = self.api(path, method="DELETE")
-        self.logger.debug(response.status_code)
+    def make_container(self, uri, metadata, force=True):
+        """Makes a container at the requested path, if possible."""
+        try:
+            resource = self.get(uri)
+        except ResourceError as re:
+            if re.status_code == requests.codes.not_found:
+                self.logger.debug("path {} not found, creating".format(uri))
+                return self.new_container(uri, metadata)
+            
 
-    def obliterate(self, path):
-        response = self.api(self.suffix(path, 'fcr:tombstone'), method="DELETE")
-        self.logger.debug(response.status_code)
+        if resource:
+            self.logger.debug("path {} already exists found".format(iru))
+            return resource
+    
+
+    def delete(self, uri):
+        """Deletes a resource"""
+        response = self.api(uri, method="DELETE")
+        
+
+    def obliterate(self, uri):
+        """Removes the tombstone record left by a resource"""
+        self.api(self.suffix(uri, 'fcr:tombstone'), method="DELETE")
+
         
 
 
@@ -264,14 +384,13 @@ Attributes
     rdf (Graph): its RDF graph
     """
 
-    def __init__(self, repo, path):
+    def __init__(self, repo, uri):
         """
 Create a new Resource. Shouldn't be used by calling code - use the get and
 children methods for that
 """
         self.repo = repo
-        self.path = path
-        self.uri = self.repo.path2uri(self.path)
+        self.uri = uri
         
         
     def _parse_rdf(self, rdf):
@@ -287,5 +406,25 @@ children methods for that
         """Returns a list of paths of this resource's children"""
         self.children = [ o for (_, p, o) in self.rdf if p == LDP_CONTAINS ]
         return self.children
-                
-            
+
+        
+    def add_container(self, metadata, slug=None, path=None, force=False):
+        """Add a new container to this resource.
+
+        Parameters:
+        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
+        path (str) -- path to new container, relative to uri
+        slug (str) -- slug of new container
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        Using the path parameter will try to create a deterministic path. If
+        the path already exists and force is False (the default), an error is
+        raised. If the path already exists and force is True, the existing
+        path is deleted and obliterated and a new, empty container is created.
+
+        """
+        c = self.repo.add_container(self.uri, metadata, slug, path, force)
+        self.repo.logger.warning("In resource method, new container = {}".format(c))
+        return c
+        
+
