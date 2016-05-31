@@ -21,16 +21,14 @@ MDATA2 = {
 PATH = 'test_013'
 SLUG = 'slug'
 
-class TestPost(fcrepotest.FCRepoTest):
+class TestPost(fcrepotest.FCRepoTestContainer):
 
     def setUp(self):
-        super(TestPost, self).setUp()
-        # set up a determined path in which to add new containers
-        g = self.repo.dc_rdf(MDATA2)
-        root = self.repo.get(self.repo.path2uri('/'))
-        self.container = root.add_container(g, path=PATH, force=True)
-        self.assertIsNotNone(self.container)
+        # set up a container at PATH
+        super(TestPost, self).setUp(PATH, MDATA2)
 
+    def tearDown(self):
+        super(TestPost, self).tearDown(PATH)
 
         
     def test_add(self):
@@ -53,6 +51,10 @@ class TestPost(fcrepotest.FCRepoTest):
         self.assertIsNotNone(s1)
         self.assertEqual(s1.uri, slugpath)
 
+        md = s1.dc()
+        for dcfield in [ 'title', 'description', 'creator' ]:
+            self.assertEqual(md[dcfield], MDATA1[dcfield])
+        
         # add a container without a slug
         s2 = self.container.add_container(g)
         self.assertIsNotNone(s2)
@@ -63,10 +65,6 @@ class TestPost(fcrepotest.FCRepoTest):
         self.assertNotEqual(s3.uri, slugpath)
  
                 
-    def tearDown(self):
-        uri = self.repo.path2uri(PATH)
-        self.repo.delete(uri)
-        self.repo.obliterate(uri)
 
 
                 
