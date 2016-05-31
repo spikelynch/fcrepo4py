@@ -1,27 +1,18 @@
 import unittest
-import fcrepo4
+import fcrepo4, fcrepotest
 import logging
 
-class TestGet(unittest.TestCase):
+class TestGet(fcrepotest.FCRepoTest):
         
     def test_get(self):
-        repo = fcrepo4.Repository(loglevel=logging.DEBUG)
-        self.assertIsNotNone(repo)
-        root = repo.get(repo.path2uri('/'))
+        root = self.repo.get(self.repo.path2uri('/'))
         self.assertIsNotNone(root)
         self.assertIsNotNone(root.rdf)
 
     def test_repo_mismatch(self):
-        repo = fcrepo4.Repository(loglevel=logging.DEBUG)
-        self.assertIsNotNone(repo)
-        badurl = repo.uri + 'thisismalformed/'
-        self.assertRaises(fcrepo4.URIError, repo.get, badurl)
+        badurl = self.repo.uri + 'thisismalformed/'
+        self.assertRaises(fcrepo4.URIError, self.repo.get, badurl)
 
-    def test_tombstone(self):
-        repo = fcrepo4.Repository(loglevel=logging.DEBUG)
-        self.assertIsNotNone(repo)
-        c = repo.ensure_container(repo.path2uri('/ensured'))
-        self.assertIsNotNone(c)
         
             
 if __name__ == '__main__':
