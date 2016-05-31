@@ -280,11 +280,8 @@ Default method is GET.
                 self.logger.error(message)
                 raise ConflictError(message)
         response = self.api(newpath, method='PUT', headers=headers, data=rdf)
-        if response.status_code < 400: #FIXME
-            self.logger.debug("Returned status code {}".format(response.status_code))
-            resource = Resource(self, uri)  #FIXME - inject the metadata
-            self.logger.debug("resource = {}".format(resource))
-            return resource
+        if response.status_code == requests.codes.created:
+            return Resource(self, uri)  #FIXME - inject the metadata
         else:
             message = "Add resource with PUT to {} failed: {} {}".format(newpath, response.status_code, response.reason)
             self.logger.error(message)            
@@ -303,8 +300,8 @@ Default method is GET.
         if slug:
             headers['Slug'] = slug
         response = self.api(uri, method='POST', headers=headers, data=rdf)
-        if response.status_code < 400: #FIXME
-            self.logger.debug("Returned status code {}".format(response.status_code))
+        self.logger.warning("Response {} {}".format(response.status_code, response.reason))
+        if response.status_code == requests.codes.created:
             uri = response.text
             return Resource(self, uri) # FIXME - metadata
         else:
@@ -327,9 +324,8 @@ Default method is GET.
         headers['Content-Type'], _ = mimetypes.guess_type(filename)
         headers['Slug'] = slug
         response = self.api(path, method='POST', headers=headers, data=fh)
-        if response.status_code < 400:
-            self.logger.debug("Returned status code {}".format(response.status_code))
-            return Resource(self, path)
+        if response.status_code == requests.codes.created:
+            return Resource(self, path) # fixme - metadata
         else:
             raise ResourceError(uri, response, "add_binary failed") 
 
@@ -424,8 +420,6 @@ children methods for that
         path is deleted and obliterated and a new, empty container is created.
 
         """
-        c = self.repo.add_container(self.uri, metadata, slug, path, force)
-        self.repo.logger.warning("In resource method, new container = {}".format(c))
-        return c
+        return self.repo.add_container(self.uri, metadata, slug, path, force)
         
 

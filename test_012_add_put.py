@@ -29,7 +29,7 @@ SLUG = 'slug'
 class TestPut(fcrepotest.FCRepoTest):
 
     def setUp(self):
-        super(TestGet, self).setUp()
+        super(TestPut, self).setUp(loglevel=logging.WARNING)
         self.delete_path()
 
                 
