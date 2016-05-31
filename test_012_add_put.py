@@ -52,6 +52,11 @@ class TestPut(fcrepotest.FCRepoTest):
         self.assertIsNotNone(c)
         self.assertEqual(c.uri, self.repo.path2uri(PATH))
 
+        md = c.dc()
+        for dcfield in [ 'title', 'description', 'creator' ]:
+            self.assertEqual(md[dcfield], MDATA1[dcfield])
+
+        
         noforce = lambda: root.add_container(g2, path=PATH)
         self.assertRaises(fcrepo4.ConflictError, noforce)
 
@@ -59,8 +64,10 @@ class TestPut(fcrepotest.FCRepoTest):
         self.assertIsNotNone(c2)
         self.assertEqual(c2.uri, self.repo.path2uri(PATH))
 
-        # FIXME: check that the metadata has been updated
-        
+        md2 = c2.dc()
+        for dcfield in [ 'title', 'description', 'creator' ]:
+            self.assertNotEqual(md2[dcfield], MDATA1[dcfield])
+            self.assertEqual(md2[dcfield], MDATA2[dcfield])
         self.repo.delete(c2.uri)
         self.repo.obliterate(c2.uri)
 

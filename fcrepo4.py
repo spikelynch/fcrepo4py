@@ -45,6 +45,23 @@ RDF_PARSE = 'turtle'
 
 LDP_CONTAINS = 'http://www.w3.org/ns/ldp#contains'
 
+DC_FIELDS = [
+    'contributor',
+    'coverage',
+    'creator',
+    'date',
+    'description',
+    'format',
+    'identifier',
+    'language',
+    'publisher',
+    'relation',
+    'rights',
+    'source',
+    'subject',
+    'title',
+    'type'
+    ]
 
 class Error(Exception):
     """Base class for exceptions.
@@ -188,15 +205,14 @@ Default method is GET.
             return path + '/' + s
 
     def dc_rdf(self, md):
-        """A utility method for building a basic DC RDF graph from a dict"""
+        """A utility method for building a DC RDF graph from a dict"""
         g = Graph()
 
         obj = URIRef("")
 
-        g.add( (obj, DC.title, Literal(md['title'])) )
-        g.add( (obj, DC.description, Literal(md['description'])) )
-        g.add( (obj, DC.creator, Literal(md['creator'])) )
-
+        for field in DC_FIELDS:
+            if field in md:
+                g.add( (obj, DC[field], Literal(md[field])) )
         g.bind("dc", DC)
         return g
 
@@ -233,7 +249,7 @@ Default method is GET.
 
         Parameters:
         uri (str) -- the path of the container to add to
-        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
+        metadata (Graph) -- the RDF 
         path (str) -- path to new container, relative to uri
         slug (str) -- slug of new container
         force (boolean) -- where path is used, whether to force an overwrite
@@ -282,7 +298,7 @@ Default method is GET.
         response = self.api(newpath, method='PUT', headers=headers, data=rdf)
         if response.status_code == requests.codes.created:
             uri = response.text
-            return Resource(self, uri, metadata=rdf)
+            return Resource(self, uri, metadata=metadata)
         else:
             message = "Add resource with PUT to {} failed: {} {}".format(newpath, response.status_code, response.reason)
             self.logger.error(message)            
@@ -304,7 +320,7 @@ Default method is GET.
         response = self.api(uri, method='POST', headers=headers, data=rdf)
         if response.status_code == requests.codes.created:
             uri = response.text
-            return Resource(self, uri, metadata=rdf)
+            return Resource(self, uri, metadata=metadata)
         else:
             message = "Add resource with POST to {} failed: {} {}".format(uri, response.status_code, response.reason)
             self.logger.error(message)            
@@ -393,6 +409,7 @@ children methods for that
             if type(metadata) == Graph:
                 self.rdf = metadata
             else:
+                self.repo.logger.warning("Passed raw metadata to Resource")
                 pass
         
         
@@ -407,10 +424,26 @@ children methods for that
 
     def children(self):
         """Returns a list of paths of this resource's children"""
-        self.children = [ o for (_, p, o) in self.rdf if p == LDP_CONTAINS ]
-        return self.children
+        return self.values(lambda p: p == LDP_CONTAINS)
 
-        
+    def search_rdf(self, predfilter):
+        """Returns a list of all the objects where predfilter(p) is true"""
+        return [ o for (_, p, o) in self.rdf if predfilter(p) ]
+
+    def match_rdf(self, predicate):
+        """Returns a list of all the objects with a predicate """
+        return [ o for (_, p, o) in self.rdf if p == predicate ]        
+
+    def dc(self):
+        """Extracts all DC values and returns a dict"""
+        dc = {}
+        for field in DC_FIELDS:
+            values = self.match_rdf(DC[field])
+            if values:
+                dc[field] = str(values[0])
+        return dc
+            
+    
     def add_container(self, metadata, slug=None, path=None, force=False):
         """Add a new container to this resource.
 
@@ -426,7 +459,6 @@ children methods for that
         path is deleted and obliterated and a new, empty container is created.
 
         """
-        self.repo.logger.info("add_container called on uri {}".format(self.uri))
         return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
         
 
