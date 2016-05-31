@@ -305,7 +305,8 @@ Default method is GET.
         response = self.api(uri, method='POST', headers=headers, data=rdf)
         if response.status_code < 400: #FIXME
             self.logger.debug("Returned status code {}".format(response.status_code))
-            return Resource(self, g)
+            uri = response.text
+            return Resource(self, uri) # FIXME - metadata
         else:
             message = "Add resource with POST to {} failed: {} {}".format(uri, response.status_code, response.reason)
             self.logger.error(message)            

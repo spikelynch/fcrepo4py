@@ -22,7 +22,7 @@ class TestGet(unittest.TestCase):
         self.assertIsNotNone(repo)
         c = repo.ensure_container(repo.path2uri('/ensured'))
         self.assertIsNotNone(c)
-        c.
+        
             
 if __name__ == '__main__':
     unittest.main()
