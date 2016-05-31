@@ -24,7 +24,7 @@ SLUG = 'slug'
 class TestPost(fcrepotest.FCRepoTest):
 
     def setUp(self):
-        super(TestPost, self).setUp(loglevel=logging.DEBUG)
+        super(TestPost, self).setUp()
         # set up a determined path in which to add new containers
         g = self.repo.dc_rdf(MDATA2)
         root = self.repo.get(self.repo.path2uri('/'))
@@ -65,7 +65,6 @@ class TestPost(fcrepotest.FCRepoTest):
                 
     def tearDown(self):
         uri = self.repo.path2uri(PATH)
-        self.repo.logger.warning("teardown uri = {}".format(uri))
         self.repo.delete(uri)
         self.repo.obliterate(uri)
 

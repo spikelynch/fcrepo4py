@@ -272,7 +272,7 @@ Default method is GET.
                 raise re
         if exists:
             if force:
-                self.logger.debug("Force is True: obliterating {}".format(newpath))
+                self.logger.debug("Force: obliterating {}".format(newpath))
                 self.delete(newpath)
                 self.obliterate(newpath)
             else:
@@ -281,7 +281,8 @@ Default method is GET.
                 raise ConflictError(message)
         response = self.api(newpath, method='PUT', headers=headers, data=rdf)
         if response.status_code == requests.codes.created:
-            return Resource(self, uri)  #FIXME - inject the metadata
+            uri = response.text
+            return Resource(self, uri, metadata=rdf)
         else:
             message = "Add resource with PUT to {} failed: {} {}".format(newpath, response.status_code, response.reason)
             self.logger.error(message)            
@@ -299,11 +300,11 @@ Default method is GET.
             rdf = metadata # FIXME make sure Content-Type matches
         if slug:
             headers['Slug'] = slug
+        self.logger.info("About to POST")
         response = self.api(uri, method='POST', headers=headers, data=rdf)
-        self.logger.warning("Response {} {}".format(response.status_code, response.reason))
         if response.status_code == requests.codes.created:
             uri = response.text
-            return Resource(self, uri) # FIXME - metadata
+            return Resource(self, uri, metadata=rdf)
         else:
             message = "Add resource with POST to {} failed: {} {}".format(uri, response.status_code, response.reason)
             self.logger.error(message)            
@@ -381,13 +382,18 @@ Attributes
     rdf (Graph): its RDF graph
     """
 
-    def __init__(self, repo, uri):
+    def __init__(self, repo, uri, metadata=None):
         """
 Create a new Resource. Shouldn't be used by calling code - use the get and
 children methods for that
 """
         self.repo = repo
         self.uri = uri
+        if metadata:
+            if type(metadata) == Graph:
+                self.rdf = metadata
+            else:
+                pass
         
         
     def _parse_rdf(self, rdf):
@@ -420,6 +426,7 @@ children methods for that
         path is deleted and obliterated and a new, empty container is created.
 
         """
-        return self.repo.add_container(self.uri, metadata, slug, path, force)
+        self.repo.logger.info("add_container called on uri {}".format(self.uri))
+        return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
         
 

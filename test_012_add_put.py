@@ -29,7 +29,7 @@ SLUG = 'slug'
 class TestPut(fcrepotest.FCRepoTest):
 
     def setUp(self):
-        super(TestPut, self).setUp(loglevel=logging.WARNING)
+        super(TestPut, self).setUp()
         self.delete_path()
 
                 
@@ -50,13 +50,17 @@ class TestPut(fcrepotest.FCRepoTest):
 
         c = root.add_container(g1, path=PATH)
         self.assertIsNotNone(c)
+        self.assertEqual(c.uri, self.repo.path2uri(PATH))
 
         noforce = lambda: root.add_container(g2, path=PATH)
         self.assertRaises(fcrepo4.ConflictError, noforce)
 
         c2 = root.add_container(g2, path=PATH, force=True)
         self.assertIsNotNone(c2)
+        self.assertEqual(c2.uri, self.repo.path2uri(PATH))
 
+        # FIXME: check that the metadata has been updated
+        
         self.repo.delete(c2.uri)
         self.repo.obliterate(c2.uri)
 
