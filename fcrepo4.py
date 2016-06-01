@@ -208,7 +208,7 @@ Default method is GET.
         else:
             return None
 
-    def suffix(self, path, s):
+    def pathconcat(self, path, s):
         """Appends a suffix like fc:tombstone to a path"""
         if path[:-1] == '/':
             return path + s
@@ -278,7 +278,7 @@ Default method is GET.
         headers = { 'Content-Type': RDF_MIME }
         if path:
             method = 'PUT'
-            uri = uri + path
+            uri = self.pathconcat(uri, path)
             self._ensure_path(uri, force)
         else:
             method = 'POST'
@@ -289,14 +289,14 @@ Default method is GET.
         return resource
 
 
-    def add_binary(self, uri, source, slug=None, path=None, force=None):
+    def add_binary(self, uri, source, slug=None, path=None, force=None, mime=None):
         """Upload binary data to a container.
 
         Parameters
         uri (str) -- the path of the container at which to add it
         metadata (Graph) -- RDF
         source (str, URI, file-like) -- a filename, URI or stream
-        mime-type (str) -- MIME type
+        mime (str) -- MIME type
         slug (str) -- preferred id
         path (str) -- relative path from uri
         force (boolean) -- whether to overwrite path if it exists
@@ -310,17 +310,27 @@ Default method is GET.
         object, you should specify the MIME type: it will default to
         'application/octet-stream' otherwise. 
         """
-        headers = { 'Content-Type': 'whatever' }
+        headers = {  }
         if path:
             method = 'PUT'
-            uri = uri + path
+            uri = self.pathconcat(uri, path)
             self._ensure_path(uri, force)
+            self.logger.debug("PUTting binary to {}".format(uri))
         else:
             method = 'POST'
             if slug:
                 headers['Slug'] = slug
-        # FIXME: _handle_data
-        return self._add_resource(uri, method, headers, source) 
+            self.logger.debug("POSTing binary to {} {}".format(uri, slug))
+
+        if type(source) == str:
+            basename = os.path.basename(source)
+            headers['Content-type'], _ = mimetypes.guess_type(source)
+            headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
+            with open(source, 'rb') as fh:
+                resource = self._add_resource(uri, method, headers, fh)
+            return resource
+        else:
+            raise Error("add_binary only does files atm")
 
 
         
@@ -335,16 +345,17 @@ Default method is GET.
         else:
             message = "{} {} failed: {} {}".format(method, uri, response.status_code, response.reason)
             self.logger.error(message)            
-            raise ResourceError(newpath, response, message) 
+            raise ResourceError(uri, response, message) 
 
         
     def _ensure_path(self, path, force):
         """Internal method to check if a path is free (and make sure it is
-        if force is True
+        if force is True. - this currently breaks if it's applied to a
+        non-RDF path
         """
-        exists = None
+        response = None
         try:
-            exists = self.get(path)
+            response = self.api(path)
         except ResourceError as re:
             if re.status_code == requests.codes.not_found:
                 # not found is good
@@ -352,7 +363,7 @@ Default method is GET.
                 pass
             else:
                 raise re
-        if exists:
+        if response:
             if force:
                 self.logger.debug("Force: obliterating {}".format(path))
                 self.delete(path)
@@ -375,15 +386,6 @@ Default method is GET.
         a triple of ( mimetype (str), base name (str), stream (stream) )
         """
 
-        if type(source) == str:
-            # FIXME: handle URIs here as well
-            basename = os.path.basename(source)
-            mimetype, _ = mimetypes.guess_type(source)
-            fh = open(source, 'rb')
-            return ( mimetype, basename, fh )
-        else:
-            # FIXME: what do we do about mime types here?
-            return ( None, None, source )
 
 
 #headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
@@ -396,7 +398,7 @@ Default method is GET.
         
     def get_access(self, path):
         """Gets the access roles for the specified path"""
-        response = self.api(self.suffix(path, 'fcr:accessroles'))
+        response = self.api(self.pathconcat(path, 'fcr:accessroles'))
         print(response.status_code)
         if response.status_code == requests.codes.ok:
             return json.loads(response.text)
@@ -405,23 +407,10 @@ Default method is GET.
             
     def set_access(self, path, acl):
         """Sets the access roles for the specified path"""
-        response = self.api(self.suffix(path, 'fcr:accessroles'), method='POST', headers={ 'Content-Type': 'application/json' }, data=json.dumps(acl))
+        response = self.api(self.pathconcat(path, 'fcr:accessroles'), method='POST', headers={ 'Content-Type': 'application/json' }, data=json.dumps(acl))
         print("After set: {}".format(response.status_code))
 
 
-    def make_container(self, uri, metadata, force=True):
-        """Makes a container at the requested path, if possible."""
-        try:
-            resource = self.get(uri)
-        except ResourceError as re:
-            if re.status_code == requests.codes.not_found:
-                self.logger.debug("path {} not found, creating".format(uri))
-                return self.new_container(uri, metadata)
-            
-
-        if resource:
-            self.logger.debug("path {} already exists found".format(iru))
-            return resource
     
 
     def delete(self, uri):
@@ -431,7 +420,7 @@ Default method is GET.
 
     def obliterate(self, uri):
         """Removes the tombstone record left by a resource"""
-        self.api(self.suffix(uri, 'fcr:tombstone'), method="DELETE")
+        self.api(self.pathconcat(uri, 'fcr:tombstone'), method="DELETE")
 
         
 

@@ -1,0 +1,7 @@
+---
+# Config for fcrepo4
+
+uri: http://localhost:8080/fcrepo/
+user: test_user 
+password: test_user_s_password
+loglevel: warning 

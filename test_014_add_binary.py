@@ -36,11 +36,31 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
 """
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
-        b = c.add_binary(FILE, slug=FILE)
+        b = c.add_binary(FILE, path=FILE)
         self.assertIsNotNone(b)
         self.assertEqual(b.uri, cpath + '/' + FILE)
-                
 
-                
+    def test_conflict_binary(self):
+        """Tests trying to upload the same path twice without force"""
+
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        b = c.add_binary(FILE, path=FILE)
+        self.assertIsNotNone(b)
+        noforce = lambda: c.add_binary(FILE, path=FILE)
+        self.assertRaises(fcrepo4.ConflictError, noforce)
+
+    def test_overwrite_binary(self):
+        """Tests trying to upload the same path twice with force"""
+
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        b = c.add_binary(FILE, path=FILE)
+        self.assertIsNotNone(b)
+        b2 = c.add_binary(FILE, path=FILE, force=True)
+        self.assertIsNotNone(b)
+        # test the modification
+
+                        
 if __name__ == '__main__':
     unittest.main()
