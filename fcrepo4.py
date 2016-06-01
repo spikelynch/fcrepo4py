@@ -18,7 +18,7 @@ for c in r.children:
 """
 
 import requests, os.path, mimetypes, json, yaml, logging, re
-
+from urllib.parse import urlparse
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 
@@ -70,6 +70,8 @@ LOGLEVELS = {
     'error': logging.ERROR,
     'critical': logging.CRITICAL
     }
+
+URL_CHUNK = 512
 
 class Error(Exception):
     """Base class for exceptions.
@@ -239,17 +241,18 @@ Default method is GET.
                 g.bind(abbrev, namespace)
         return g
         
-    def get(self, uri):
+    def get(self, uri, accept=None):
         """The basic method for retrieving a resource.
 
         Fetches the metadata for the resource at uri, raises a ResourceError
         if the status code was something other than ok
         """
-        
-        response = self.api(uri, headers={ 'Accept': RDF_MIME })
+
+        response = self.api(uri)   #headers={ 'Accept': RDF_MIME }
         if response.status_code == requests.codes.ok:
-            resource = Resource(self, uri)
-            resource._parse_rdf(response.text)
+            resource = Resource(self, uri, response=response)
+            if response.headers['Content-type'] == 'text/turtle':
+                resource._parse_rdf(response.text)
             return resource
         else:
             message = "get {} returned HTTP status {}".format(uri, response.status_code)
@@ -323,15 +326,34 @@ Default method is GET.
             self.logger.debug("POSTing binary to {} {}".format(uri, slug))
 
         if type(source) == str:
-            basename = os.path.basename(source)
-            headers['Content-type'], _ = mimetypes.guess_type(source)
-            headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
-            with open(source, 'rb') as fh:
-                resource = self._add_resource(uri, method, headers, fh)
-            return resource
+            if self._is_url(source):
+                # open the source URL as a stream, then use the requests method
+                # iter_content to get a generator which we pass to _add_resource
+                # see http://docs.python-requests.org/en/master/user/advanced/
+                source_r = requests.get(source, stream=True)
+                headers['Content-type'] = source_r.headers['Content-type']
+                basename = source.split('/')[-1]
+                if method == 'POST' and slug:
+                    basename = slug
+                headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
+                return self._add_resource(uri, method, headers, source_r.iter_content(URL_CHUNK))
+                
+            else:
+                basename = os.path.basename(source)
+                headers['Content-type'], _ = mimetypes.guess_type(source)
+                headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
+                with open(source, 'rb') as fh:
+                    resource = self._add_resource(uri, method, headers, fh)
+                return resource
         else:
-            raise Error("add_binary only does files atm")
+            raise Error("add_binary only does files and URLs atm")
 
+    def _is_url(self, source):
+        """Tries to parse a data source string as a URL. If the result is
+        a http or https URL, returns True.
+        """
+        p = urlparse(source)
+        return p.scheme == 'http' or p.scheme == 'https'
 
         
     def _add_resource(self, uri, method, headers, data):
@@ -347,6 +369,18 @@ Default method is GET.
             self.logger.error(message)            
             raise ResourceError(uri, response, message) 
 
+
+    # def _add_resource_from_url(self, uri, method, headers, source):
+    #     """First attempt: let's try and stream the URL straight into fedora"""
+
+    #     # See http://docs.python-requests.org/en/master/user/advanced/
+        
+    #     source_r = requests.get(source, stream=True)
+    #     headers['Content-type'] = source_r.headers['Content-type']
+    #     response = self.api(uri, method=method, headers=headers, data=source_r.iter_content(URL_CHUNK))
+    #     if response.st
+
+        
         
     def _ensure_path(self, path, force):
         """Internal method to check if a path is free (and make sure it is
@@ -435,10 +469,13 @@ Attributes
     rdf (Graph): its RDF graph
     """
 
-    def __init__(self, repo, uri, metadata=None):
+    def __init__(self, repo, uri, metadata=None, response=None):
         """
 Create a new Resource. Shouldn't be used by calling code - use the get and
-children methods for that
+children methods for that.
+
+If the Resource was created by an http request, the requests.Response object
+is stored (as 'response')
 """
         self.repo = repo
         self.uri = uri
@@ -448,7 +485,25 @@ children methods for that
             else:
                 self.repo.logger.warning("Passed raw metadata to Resource")
                 pass
-        
+        if response:
+            self.response = response
+        else:
+            self.response = None
+
+    def data(self):
+        """Returns the data in the resource as a single lump"""
+        if self.response:
+            return self.response.text
+        else:
+            return None
+
+    def stream(self):
+        """Returns an object from which the data in the resource can be
+        streamed"""
+        if self.response:
+            return self.response.raw
+        else:
+            return None
         
     def _parse_rdf(self, rdf):
         """Parse the serialised RDF content from FC as an rdflib Graph"""
