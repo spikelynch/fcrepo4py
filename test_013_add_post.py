@@ -21,7 +21,7 @@ MDATA2 = {
 PATH = 'test_013'
 SLUG = 'slug'
 
-class TestPost(fcrepotest.FCRepoTestContainer):
+class TestPost(fcrepotest.FCRepoContainerTest):
 
     def setUp(self):
         # set up a container at PATH
