@@ -248,14 +248,17 @@ Default method is GET.
         if the status code was something other than ok
         """
 
-        response = self.api(uri)   #headers={ 'Accept': RDF_MIME }
+        if accept:
+            response = self.api(uri, headers = { 'Accept': accept })
+        else:
+            response = self.api(uri)
         if response.status_code == requests.codes.ok:
             resource = Resource(self, uri, response=response)
             if response.headers['Content-type'] == 'text/turtle':
                 resource._parse_rdf(response.text)
             return resource
         else:
-            message = "get {} returned HTTP status {}".format(uri, response.status_code)
+            message = "get {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
             raise ResourceError(uri, response, message)
 
 
@@ -370,17 +373,6 @@ Default method is GET.
             raise ResourceError(uri, response, message) 
 
 
-    # def _add_resource_from_url(self, uri, method, headers, source):
-    #     """First attempt: let's try and stream the URL straight into fedora"""
-
-    #     # See http://docs.python-requests.org/en/master/user/advanced/
-        
-    #     source_r = requests.get(source, stream=True)
-    #     headers['Content-type'] = source_r.headers['Content-type']
-    #     response = self.api(uri, method=method, headers=headers, data=source_r.iter_content(URL_CHUNK))
-    #     if response.st
-
-        
         
     def _ensure_path(self, path, force):
         """Internal method to check if a path is free (and make sure it is
@@ -420,43 +412,58 @@ Default method is GET.
         a triple of ( mimetype (str), base name (str), stream (stream) )
         """
 
+    def put(self, uri, metadata=None, data=None):
+        """Basic method for PUT-ing metadata (or data) updates to a resource.
 
+        Parameters:
 
-#headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
-#        headers['Content-Type'], _ = mimetypes.guess_type(filename)
-#        headers['Slug'] = slug
+        uri (str) - the resource's URI
+        metadata (Graph) - the updated rdf
+        data (string or file-like) - the updated payload
 
+        Note that 'data' isn't implemented yet.
+
+        Fedora checks for consistency when accepting an RDF update, so the
+        RDF graph should be from a recent GET.
+        """
+
+        if metadata:
+            rdf = metadata.serialize(format=RDF_MIME)
+            headers = { 'Content-type': RDF_MIME }
+            response = self.api(uri, method='PUT', headers=headers, data=rdf)
+            if response.status_code == requests.codes.no_content:
+                return True
+            else:
+                message = "put RDF {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
+                raise ResourceError(uri, response, message)
+
+        else:
+            raise Error("Put to data objects has not been implemented")
+    
 
 
 
         
-    def get_access(self, path):
-        """Gets the access roles for the specified path"""
-        response = self.api(self.pathconcat(path, 'fcr:accessroles'))
-        print(response.status_code)
-        if response.status_code == requests.codes.ok:
-            return json.loads(response.text)
-        else:
-            return "Bad status: {}".format(response.status_code)
-            
-    def set_access(self, path, acl):
-        """Sets the access roles for the specified path"""
-        response = self.api(self.pathconcat(path, 'fcr:accessroles'), method='POST', headers={ 'Content-Type': 'application/json' }, data=json.dumps(acl))
-        print("After set: {}".format(response.status_code))
 
 
     
 
     def delete(self, uri):
         """Deletes a resource"""
-        response = self.api(uri, method="DELETE")
-        
+        return self._delete_uri(uri)
 
     def obliterate(self, uri):
         """Removes the tombstone record left by a resource"""
-        self.api(self.pathconcat(uri, 'fcr:tombstone'), method="DELETE")
+        tombstone = self.pathconcat(uri, 'fcr:tombstone')
+        return self._delete_uri(tombstone)
 
-        
+    def _delete_uri(self, uri):
+        response = self.api(uri, method="DELETE")
+        if response.status_code == requests.codes.no_content:
+            return True
+        else:
+            message = "delete {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
+            raise ResourceError(uri, response, message)
 
 
 
@@ -465,8 +472,12 @@ class Resource(object):
 
 Attributes
     repo (Repository): the repository
-    path (str): its path (not URI)
+    uri (str): its URI
     rdf (Graph): its RDF graph
+    response (Response): the requests.Response object, if available
+
+The methods on Resource objects mostly pass through to the corresponding
+methods on its Repository object.
     """
 
     def __init__(self, repo, uri, metadata=None, response=None):
@@ -518,21 +529,40 @@ is stored (as 'response')
         """Returns a list of paths of this resource's children"""
         return self.values(lambda p: p == LDP_CONTAINS)
 
-    def search_rdf(self, predfilter):
+    def rdf_search(self, predfilter):
         """Returns a list of all the objects where predfilter(p) is true"""
         return [ o for (_, p, o) in self.rdf if predfilter(p) ]
 
-    def match_rdf(self, predicate):
+    def rdf_get_all(self, predicate):
         """Returns a list of all the objects with a predicate """
-        return [ o for (_, p, o) in self.rdf if p == predicate ]        
+        return [ o for (_, p, o) in self.rdf if p == predicate ]
+
+    def rdf_get(self, predicate):
+        """Syntax sugar for get_all_rdf(p)[0]"""
+        os = [ o for (_, p, o) in self.rdf if p == predicate ]
+        if os:
+            return os[0]
+        else:
+            return None
+
+    def rdf_add(self, p, o):
+        """Add a triple to the object's graph"""
+        self.rdf.add(URIRef(""), p, o)
+
+    def rdf_set(self, p, o):
+        """This removes all triples with predicate matching p and then
+        adds one a triple with predicate p and object o.
+        """
+        self.rdf.remove((URIRef(""), p, None))
+        self.rdf.add((URIRef(""), p, o))
+
+    # some extra methods for add_list and replace_list
 
     def dc(self):
         """Extracts all DC values and returns a dict"""
         dc = {}
         for field in DC_FIELDS:
-            values = self.match_rdf(DC[field])
-            if values:
-                dc[field] = str(values[0])
+            dc[field] = str(self.rdf_get(DC[field]))
         return dc
             
     
@@ -568,3 +598,12 @@ is stored (as 'response')
         """
         return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force)
 
+    def get(self):
+        """Refreshes the RDF from Fedora"""
+        self = self.repo.get(self.uri, accept=RDF_MIME)
+    
+    def put(self):
+        """Writes the current RDF to Fedora"""
+        if not self.rdf:
+            raise Error("Resource at uri {} is not an RDF-resource".format(self.uri))
+        self.repo.put(self.uri, metadata=self.rdf)
