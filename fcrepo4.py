@@ -43,6 +43,13 @@ METHODS = {
 RDF_MIME = 'text/turtle'
 RDF_PARSE = 'turtle'    
 
+FC4_URL = 'http://fedora.info/definitions/v4/repository#'
+
+FC4_NS = Namespace(FC4_URL)
+
+FC4_LAST_MODIFIED = FC4_NS['lastModified']
+
+
 LDP_CONTAINS = 'http://www.w3.org/ns/ldp#contains'
 
 DC_FIELDS = [
@@ -72,6 +79,9 @@ LOGLEVELS = {
     }
 
 URL_CHUNK = 512
+
+REPLACE = 0
+APPEND = 1
 
 class Error(Exception):
     """Base class for exceptions.
@@ -412,33 +422,7 @@ Default method is GET.
         a triple of ( mimetype (str), base name (str), stream (stream) )
         """
 
-    def put(self, uri, metadata=None, data=None):
-        """Basic method for PUT-ing metadata (or data) updates to a resource.
 
-        Parameters:
-
-        uri (str) - the resource's URI
-        metadata (Graph) - the updated rdf
-        data (string or file-like) - the updated payload
-
-        Note that 'data' isn't implemented yet.
-
-        Fedora checks for consistency when accepting an RDF update, so the
-        RDF graph should be from a recent GET.
-        """
-
-        if metadata:
-            rdf = metadata.serialize(format=RDF_MIME)
-            headers = { 'Content-type': RDF_MIME }
-            response = self.api(uri, method='PUT', headers=headers, data=rdf)
-            if response.status_code == requests.codes.no_content:
-                return True
-            else:
-                message = "put RDF {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
-                raise ResourceError(uri, response, message)
-
-        else:
-            raise Error("Put to data objects has not been implemented")
     
 
 
@@ -598,12 +582,39 @@ is stored (as 'response')
         """
         return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force)
 
-    def get(self):
-        """Refreshes the RDF from Fedora"""
-        self = self.repo.get(self.uri, accept=RDF_MIME)
     
-    def put(self):
-        """Writes the current RDF to Fedora"""
+    def update(self, changes):
+        """Updates a resource's metadata.
+
+        Parameters:
+        changes: a list of ( CHANGE, Predicate, Object ) triples
+
+        CHANGE is one of APPEND or REPLACE
+
+
+        """
+        
         if not self.rdf:
             raise Error("Resource at uri {} is not an RDF-resource".format(self.uri))
-        self.repo.put(self.uri, metadata=self.rdf)
+        # Make sure that the resource has a current set of RDF headers
+        with open('dump-before.turtle', 'wb') as tf:
+            tf.write(self.rdf.serialize(format=RDF_MIME))
+        
+            
+        self = self.repo.get(self.uri, accept=RDF_MIME)
+
+        for ( t, p, o ) in changes:
+            if t == REPLACE:
+                self.rdf.remove((URIRef(self.uri), p, None))
+            self.rdf.add((URIRef(self.uri), p, o))
+
+        rdf = self.rdf.serialize(format=RDF_MIME)
+        with open('dump-after.turtle', 'wb') as tf:
+            tf.write(rdf)
+        headers = { 'Content-type': RDF_MIME }
+        response = self.repo.api(self.uri, method='PUT', headers=headers, data=rdf)
+        if response.status_code == requests.codes.no_content:
+            return self
+        else:
+            message = "put RDF {} returned HTTP status {} {}".format(self.uri, response.status_code, response.reason)
+            raise ResourceError(self.uri, response, message)
