@@ -180,7 +180,7 @@ class Repository(object):
         return cf
 
     def path2uri(self, path):
-        """Converts a REST API path to a url"""
+        """Converts a REST API path to an absolute url"""
         uri = self.uri + 'rest'
         if not path:
             return uri
@@ -188,6 +188,16 @@ class Repository(object):
             return uri + '/' + path
         return uri + path
 
+    def path2reluri(self, path):
+        """Converts a REST API path to a relative url"""
+        uri = '/rest'
+        if not path:
+            return uri
+        if path[0] != '/':
+            return uri + '/' + path
+        return uri + path
+
+    
     def uri2path(self, uri):
         """Converts a full uri to a REST path.
 
