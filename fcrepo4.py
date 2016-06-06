@@ -80,8 +80,9 @@ LOGLEVELS = {
 
 URL_CHUNK = 512
 
-REPLACE = 0
-APPEND = 1
+RDF_ADD = 0
+RDF_REPLACE = 1
+RDF_REMOVE = 2
 
 class Error(Exception):
     """Base class for exceptions.
@@ -223,8 +224,6 @@ Default method is GET.
             self.logger.debug("API {} {}".format(method, uri))
             if headers:
                 self.logger.debug("headers={}".format(headers))
-            if data:
-                self.logger.debug("data={}".format(data))
             r = m(uri, auth=(self.user, self.password), headers=headers, data=data)
             return r
         else:
@@ -494,6 +493,7 @@ is stored (as 'response')
             self.response = response
         else:
             self.response = None
+        self.changes = []
 
     def data(self):
         """Returns the data in the resource as a single lump"""
@@ -539,18 +539,50 @@ is stored (as 'response')
         else:
             return None
 
+    # Both rdf_add and rdf_set now build a list of RDF changes which
+    # aren't applied until rdf_write is called. This is so that the module
+    # can manage Fedora's requirements about RDF consistency w/r/t system
+    # triples.
+        
     def rdf_add(self, p, o):
-        """Add a triple to the object's graph"""
-        self.rdf.add(URIRef(""), p, o)
+        """Adds an RDF change to the stack to be written with rdf_write.
 
-    def rdf_set(self, p, o):
-        """This removes all triples with predicate matching p and then
-        adds one a triple with predicate p and object o.
+        Parameters:
+        p (URIRef) - the RDF predicate
+        o (Literal or URIRef) - the property or value
+
+        Changes made with rdf_add will be added - existing triples with
+        predicate p will not be overwritten.  To replace a predicate use
+        rdf_replace.
+
         """
-        self.rdf.remove((URIRef(""), p, None))
-        self.rdf.add((URIRef(""), p, o))
+        self.changes.append((RDF_ADD, p, o))
 
-    # some extra methods for add_list and replace_list
+    def rdf_replace(self, p, o):
+        """Adds an RDF change to the stack to be written with rdf_write.
+
+        Parameters:
+        p (URIRef) - the RDF predicate
+        o (Literal or URIRef) - the property or value
+
+        Changes made with rdf_replace will overwrite all existing triples
+        with predicate p.  To add a triple without removing existing triples,
+        use rdf_add
+        """        
+        self.changes.append((RDF_REPLACE, p, o))
+
+    def rdf_remove(self, p):
+        """Adds an RDF change to the stack to be written with rdf_write.
+
+        Parameters:
+        p (URIRef) - the RDF predicate
+
+        Removes all triples with the predicate p from the RDF graph when
+        rdf_write is called.
+
+        """        
+        self.changes.append((RDF_REMOVE, p, None))
+
 
     def dc(self):
         """Extracts all DC values and returns a dict"""
@@ -593,30 +625,33 @@ is stored (as 'response')
         return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force)
 
     
-    def update(self, changes):
-        """Updates a resource's metadata.
-
-        Parameters:
-        changes: a list of ( CHANGE, Predicate, Object ) triples
-
-        CHANGE is one of APPEND or REPLACE
-
-
+    def rdf_write(self):
+        """Updates a resource's metadata, based on the list of changes
+        which has been build by calls to rdf_add, rdf_replace and rdf_remove.
         """
         
         if not self.rdf:
             raise Error("Resource at uri {} is not an RDF-resource".format(self.uri))
+        if not self.changes:
+            self.repo.warn("Call to rdf_write before any changes specified")
+            return None
+        
         # Make sure that the resource has a current set of RDF headers
+        
+        
+        most_recent = self.repo.get(self.uri, accept=RDF_MIME)
+        self.rdf = most_recent.rdf
+
         with open('dump-before.turtle', 'wb') as tf:
             tf.write(self.rdf.serialize(format=RDF_MIME))
+        self.repo.logger.debug("Change list = {}".format(self.changes))
         
-            
-        self = self.repo.get(self.uri, accept=RDF_MIME)
-
-        for ( t, p, o ) in changes:
-            if t == REPLACE:
+        for ( t, p, o ) in self.changes:
+            self.repo.logger.debug("Change: {} {} {}".format(t, p, o))
+            if t == RDF_REPLACE or t == RDF_REMOVE:
                 self.rdf.remove((URIRef(self.uri), p, None))
-            self.rdf.add((URIRef(self.uri), p, o))
+            if t == RDF_REPLACE or t == RDF_ADD:
+                self.rdf.add((URIRef(self.uri), p, o))
 
         rdf = self.rdf.serialize(format=RDF_MIME)
         with open('dump-after.turtle', 'wb') as tf:
