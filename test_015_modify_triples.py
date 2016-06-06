@@ -23,7 +23,8 @@ MDATA2 = {
     'description': 'Updated description',
     'creator': 'New creator',
     'rights': 'Something about rights',
-    'format': 'Format is tricky because Python interprets it wrong'
+    'format': 'Format is tricky and is causing intermittent failures'
+#    'format': 'Format is tricky because Python interprets it wrong'
     }
     
 PCDM = Namespace('http://pcdm.org/models#')
@@ -36,8 +37,6 @@ class TestModifyTriples(fcrepotest.FCRepoContainerTest):
 
     def setUp(self):
         super(TestModifyTriples, self).setUp(CPATH, CMDATA)
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
 
     def tearDown(self):
         super(TestModifyTriples, self).tearDown(CPATH)
@@ -62,32 +61,60 @@ class TestModifyTriples(fcrepotest.FCRepoContainerTest):
        
         for field, value in MDATA2.items():
             predicate = DC[field]
-            self.logger.debug("{} predicate = {}".format(field, predicate))
             self.assertEqual(str(r2.rdf_get(DC[field])), MDATA2[field])
+        
 
-   # def test_add_triples(self):
-   #      """Creates a container and adds multiple triples with the same
-   #      predicate"""
+    def test_intermittent_format(self):
+        """Adding a DC['format'] to a container is failing sometimes."""
 
-   #      c = self.repo.get(self.repo.path2uri(CPATH))
+        for i in range(0, 10):
+            self.logger.debug("Multiple format test {}".format(i))
+            c = self.repo.get(self.repo.path2uri(CPATH))
 
-   #      resource = c.add_container(self.repo.dc_rdf(MDATA1), path="resource")
-   #      self.assertIsNotNone(resource)
-   #      uri = resource.uri
-   #      self.logger.info("New resource at {}".format(uri))
+            resource = c.add_container(self.repo.dc_rdf(MDATA1))
+            self.assertIsNotNone(resource)
+            uri = resource.uri
+            self.logger.info("New resource at {}".format(uri))
 
-   #      uris = [ ('http://fake.it/things/' + s) for s in [ 'one', 'two', 'three' ] ]
-    
-   #      for uri in uris:
-   #          resource.rdf_add(PCDM['hasMember'], uri)
+            value = MDATA2['format']
+            
+            resource.rdf_replace(DC['format'], Literal(value))
+        
+            self.assertTrue(resource.rdf_write())
+
+            r2 = self.repo.get(resource.uri)
+            self.logger.debug("All rdf triples with DC.format")
+            for ( s, p, o ) in r2.rdf.triples((None, DC['format'], None)):
+                self.logger.debug("{} -> format -> {}".format(s, o))
+            self.assertEqual(str(r2.rdf_get(DC['format'])), value)
             
 
-   #      self.assertTrue(resource.rdf_write())
 
-   #      r2 = self.repo.get(resource.uri)
+            
+    # def test_add_triples(self):
+    #     """Creates a container and adds multiple triples with the same
+    #     predicate"""
 
-   #      members = r2.rdf_get(PCDM['hasMember'])
-        
+    #     c = self.repo.get(self.repo.path2uri(CPATH))
+
+    #     resource = c.add_container(self.repo.dc_rdf(MDATA1), path="resource")
+    #     self.assertIsNotNone(resource)
+    #     uri = resource.uri
+    #     self.logger.info("New resource at {}".format(uri))
+
+    #     uris = [ ('http://fake.it/things/' + s) for s in [ 'one', 'two', 'three' ] ]
+    
+    #     for uri in uris:
+    #         resource.rdf_add(PCDM['hasMember'], URIRef(uri))
+            
+
+    #     self.assertTrue(resource.rdf_write())
+
+    #     r2 = self.repo.get(resource.uri)
+
+    #     members = [ str(u) for u in r2.rdf_get(PCDM['hasMember']) ]
+    #     for uri in uris:
+    #         self.assertTrue(uri in members)
        
                                 
 if __name__ == '__main__':

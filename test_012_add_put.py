@@ -52,7 +52,11 @@ class TestPut(fcrepotest.FCRepoTest):
         self.assertIsNotNone(c)
         self.assertEqual(c.uri, self.repo.path2uri(PATH))
 
+        c.rdf_read()
+
         md = c.dc()
+        
+        self.repo.logger.warning("DC metadata = {}".format(md))
         for dcfield in [ 'title', 'description', 'creator' ]:
             self.assertEqual(md[dcfield], MDATA1[dcfield])
 
@@ -63,6 +67,8 @@ class TestPut(fcrepotest.FCRepoTest):
         c2 = root.add_container(g2, path=PATH, force=True)
         self.assertIsNotNone(c2)
         self.assertEqual(c2.uri, self.repo.path2uri(PATH))
+
+        c2.rdf_read()
 
         md2 = c2.dc()
         for dcfield in [ 'title', 'description', 'creator' ]:

@@ -4,8 +4,15 @@ import fcrepo4
 class FCRepoTest(unittest.TestCase):
     """Test case which sets up a repository connection"""
     def setUp(self, loglevel=logging.WARNING):
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(level=loglevel)
         self.repo = fcrepo4.Repository(loglevel=loglevel)
 
+    def dump_triples(self, graph, level=logging.WARNING):
+        self.logger.log(level, "RDF Graph")
+        for ( s, p, o ) in graph.triples((None, None, None)):
+            self.logger.log(level, "{} --{}--> {}".format(s, p, o))
+        
 
 class FCRepoContainerTest(FCRepoTest):
     """Test case which ensures that a path will exist in which to do stuff

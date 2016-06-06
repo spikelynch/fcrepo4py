@@ -51,6 +51,7 @@ class TestPost(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(s1)
         self.assertEqual(s1.uri, slugpath)
 
+        s1.rdf_read()
         md = s1.dc()
         for dcfield in [ 'title', 'description', 'creator' ]:
             self.assertEqual(md[dcfield], MDATA1[dcfield])

@@ -520,20 +520,22 @@ is stored (as 'response')
         pass
 
     def children(self):
-        """Returns a list of paths of this resource's children"""
-        return self.values(lambda p: p == LDP_CONTAINS)
+        """Returns a list of paths of this resource's FEDORA children"""
+        return self.rdf.objects((URIRef(self.uri), LDP_CONTAINS, None))
 
     def rdf_search(self, predfilter):
         """Returns a list of all the objects where predfilter(p) is true"""
-        return [ o for (_, p, o) in self.rdf if predfilter(p) ]
+        pos = self.rdf.predicates_objects(subject=URIRef(self.uri))
+        return [ o for (p, o) in pos if predfilter(p) ]
 
     def rdf_get_all(self, predicate):
         """Returns a list of all the objects with a predicate """
-        return [ o for (_, p, o) in self.rdf if p == predicate ]
+        return list(self.rdf.objects(subject=URIRef(self.uri), predicate=predicate))
 
     def rdf_get(self, predicate):
-        """Syntax sugar for get_all_rdf(p)[0]"""
-        os = [ o for (_, p, o) in self.rdf if p == predicate ]
+        """Gets only one of the objects from rdf_get_all"""
+        os = self.rdf_get_all(predicate)
+        self.repo.logger.debug("List of all with predicate {}:{}".format(predicate, os))
         if os:
             return os[0]
         else:
@@ -588,7 +590,9 @@ is stored (as 'response')
         """Extracts all DC values and returns a dict"""
         dc = {}
         for field in DC_FIELDS:
-            dc[field] = str(self.rdf_get(DC[field]))
+            value = self.rdf_get(DC[field])
+            if value:
+                dc[field] = str(value)
         return dc
             
     
@@ -624,6 +628,12 @@ is stored (as 'response')
         """
         return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force)
 
+    def rdf_read(self):
+        """Read the metadata from Fedora"""
+    
+        most_recent = self.repo.get(self.uri, accept=RDF_MIME)
+        self.rdf = most_recent.rdf
+        return self.rdf
     
     def rdf_write(self):
         """Updates a resource's metadata, based on the list of changes
@@ -636,11 +646,9 @@ is stored (as 'response')
             self.repo.warn("Call to rdf_write before any changes specified")
             return None
         
-        # Make sure that the resource has a current set of RDF headers
+        # Make sure that the resource has a current set of RDF         
         
-        
-        most_recent = self.repo.get(self.uri, accept=RDF_MIME)
-        self.rdf = most_recent.rdf
+        self.rdf_read()
 
         with open('dump-before.turtle', 'wb') as tf:
             tf.write(self.rdf.serialize(format=RDF_MIME))
