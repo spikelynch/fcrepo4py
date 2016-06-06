@@ -91,31 +91,39 @@ class TestModifyTriples(fcrepotest.FCRepoContainerTest):
 
 
             
-    # def test_add_triples(self):
-    #     """Creates a container and adds multiple triples with the same
-    #     predicate"""
+    def test_add_remove_triples(self):
+        """Creates a container and adds multiple triples with the same
+        predicate"""
 
-    #     c = self.repo.get(self.repo.path2uri(CPATH))
+        c = self.repo.get(self.repo.path2uri(CPATH))
 
-    #     resource = c.add_container(self.repo.dc_rdf(MDATA1), path="resource")
-    #     self.assertIsNotNone(resource)
-    #     uri = resource.uri
-    #     self.logger.info("New resource at {}".format(uri))
+        resource = c.add_container(self.repo.dc_rdf(MDATA1))
+        self.assertIsNotNone(resource)
+        uri = resource.uri
+        self.logger.info("New resource at {}".format(uri))
 
-    #     uris = [ ('http://fake.it/things/' + s) for s in [ 'one', 'two', 'three' ] ]
+        uris = [ ('http://fake.it/things/' + s) for s in [ 'one', 'two', 'three' ] ]
     
-    #     for uri in uris:
-    #         resource.rdf_add(PCDM['hasMember'], URIRef(uri))
+        for uri in uris:
+            resource.rdf_add(PCDM['hasMember'], URIRef(uri))
             
+        self.assertTrue(resource.rdf_write())
 
-    #     self.assertTrue(resource.rdf_write())
+        r2 = self.repo.get(resource.uri)
 
-    #     r2 = self.repo.get(resource.uri)
+        members = [ str(u) for u in r2.rdf_get_all(PCDM['hasMember']) ]
+        for uri in uris:
+            self.assertTrue(uri in members)
 
-    #     members = [ str(u) for u in r2.rdf_get(PCDM['hasMember']) ]
-    #     for uri in uris:
-    #         self.assertTrue(uri in members)
-       
+        r2.rdf_remove(PCDM['hasMember'])
+
+        self.assertTrue(r2.rdf_write())
+
+        r2.rdf_read()
+
+        members = r2.rdf_get_all(PCDM['hasMember'])
+        self.assertFalse(members)
+            
                                 
 if __name__ == '__main__':
     unittest.main()
