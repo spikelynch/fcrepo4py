@@ -84,6 +84,8 @@ RDF_ADD = 0
 RDF_REPLACE = 1
 RDF_REMOVE = 2
 
+FCR_ACCESS = 'fcr:accessroles'
+
 class Error(Exception):
     """Base class for exceptions.
 
@@ -133,10 +135,12 @@ class ResourceError(Error):
 
 
 class Repository(object):
-    """Connection to an FC4 repository."""
+    """Object representing a FC4 repository and associated config values
+       like usernames and passwords.
+    """
     
-    def __init__(self, config='config.yml', loglevel=logging.WARNING):
-        """Store the uri, login and password"""
+    def __init__(self, config='config.yml', user='user', loglevel=logging.WARNING):
+        """"""
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(loglevel)
         configd = {}
@@ -145,7 +149,7 @@ class Repository(object):
             configd = config
         else:
             configd = self.load_config(config)
-        fields = [ 'uri', 'user', 'password' ]
+        fields = [ 'uri', 'users' ]
         m = [ f for f in fields if f not in configd ]
         if m:
             message = "Config values missing: {}".format(', '.join(m))
@@ -158,12 +162,23 @@ class Repository(object):
             else:
                 self.logger.error("Warning: config {} matches no log level".format(configd['loglevel']))
         self.uri = configd['uri']
-        self.user = configd['user']
-        self.password = configd['password']
+        self.users = configd['users']
+        self.set_user(user)
         if self.uri[-1:] != '/':
             self.uri += '/'
         self.pathre = re.compile("^{}rest/(.*)$".format(self.uri))
 
+
+    def set_user(self, user):
+        if user in self.users:
+            self.user = self.users[user]['user']
+            self.password = self.users[user]['password']
+        else:
+            message = "Couldn't find user '{}' in config".format(user)
+            self.logger.error(message)
+            raise Error(message)
+
+        
     def load_config(self, conffile):
         cf = None
         message = ''
@@ -211,7 +226,7 @@ Throws an exception if the uri doesn't match this repository
             raise URIError("Path mismatch - couldn't parse {} to a path in {}".format(uri, self.uri))
         
         
-    def api(self, uri, method='GET', headers=None, data=None):
+    def api(self, uri, method='GET', headers=None, data=None, auth=None):
         """
 Generic api call with an HTTP method, target URL and headers, data (for
 plain POST) or files (for file uploads)
@@ -260,15 +275,15 @@ Default method is GET.
                 g.bind(abbrev, namespace)
         return g
         
-    def get(self, uri, accept=None):
+    def get(self, uri, headers=None):
         """The basic method for retrieving a resource.
 
         Fetches the metadata for the resource at uri, raises a ResourceError
         if the status code was something other than ok
         """
 
-        if accept:
-            response = self.api(uri, headers = { 'Accept': accept })
+        if headers:
+            response = self.api(uri, headers=headers)
         else:
             response = self.api(uri)
         if response.status_code == requests.codes.ok:
@@ -631,7 +646,7 @@ is stored (as 'response')
     def rdf_read(self):
         """Read the metadata from Fedora"""
     
-        most_recent = self.repo.get(self.uri, accept=RDF_MIME)
+        most_recent = self.repo.get(self.uri, headers={ 'Accept': RDF_MIME })
         self.rdf = most_recent.rdf
         return self.rdf
     
@@ -671,3 +686,39 @@ is stored (as 'response')
         else:
             message = "put RDF {} returned HTTP status {} {}".format(self.uri, response.status_code, response.reason)
             raise ResourceError(self.uri, response, message)
+
+    def acl_uri(self):
+        return self.repo.pathconcat(self.uri, FCR_ACCESS)
+        
+    def acl_get(self, effective=True):
+        """Get the ACL on this resource.  By default it gets the effective
+        ACL (inherited from parent) - use effective=True to switch this off)"""
+
+        headers = {  }
+        if effective:
+            headers['Effective'] = 1
+        acl_js = self.repo.get(self.acl_uri(), headers=headers)
+        acls = json.load(acl_js)
+        return acls
+        
+
+    def acl_set(self, acl):
+        """Applies an acl to the resource
+
+        Parameters:
+        acl - { user1: [ role1, role2 ], user2: [ role3 ] .. }
+              where userN and roleN are str
+
+        This method converts the acl data structure to JSON
+        """
+
+        aclj = json.dumps(acl)
+        headers = { 'Content-Type': 'application/json' }
+        uri = self.acl_uri()
+        response = self.repo.api(uri, method="POST", headers=headers)
+        if response.status_code == requests.codes.created:
+            return response
+        else:
+            message = "Couldn't set access roles on {}: {} {}".format(uri, response.status_code, response.reason)
+            raise ResourceError(uri, response, message)
+        

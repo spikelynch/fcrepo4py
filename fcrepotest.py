@@ -7,6 +7,7 @@ class FCRepoTest(unittest.TestCase):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
         self.repo = fcrepo4.Repository(loglevel=loglevel)
+        self.repo.set_user('fedoraAdmin')
 
     def dump_triples(self, graph, level=logging.WARNING):
         self.logger.log(level, "RDF Graph")
@@ -28,6 +29,7 @@ class FCRepoContainerTest(FCRepoTest):
         
                 
     def tearDown(self, path):
+        self.repo.set_user('fedoraAdmin')
         uri = self.repo.path2uri(path)
         self.repo.delete(uri)
         self.repo.obliterate(uri)
