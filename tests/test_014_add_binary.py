@@ -19,12 +19,12 @@ MDATA2 = {
 
     
 PATH = 'test_014'
-FILE = 'bird.jpg'
+FILE = 'tests/bird.jpg'
 
 URL_BINARY = 'http://apod.nasa.gov/apod/image/1605/Trumpler14c_ward.jpg'
 URL_BASENAME = URL_BINARY.split('/')[-1]
 
-OUTFILE = 'bird2.jpg'
+OUTFILE = 'tests/bird2.jpg'
 
 class TestPutBinary(fcrepotest.FCRepoContainerTest):
 
