@@ -83,6 +83,9 @@ setup(
         'fcrepo4': ['bird.jpg'],
     },
 
+    test_suite='nose.collector',
+    tests_require=['nose'],
+    
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
     # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa
