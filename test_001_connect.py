@@ -5,6 +5,7 @@ class TestConnect(unittest.TestCase):
         
     def test_connect(self):
         repo = fcrepo4.Repository()
+        repo.set_user('fedoraAdmin')
         self.assertIsNotNone(repo)
         res = repo.get(repo.path2uri('/'))
         self.assertIsNotNone(res)

@@ -1,0 +1,16 @@
+---
+# Config for fcrepo4
+
+uri: http://localhost:8080/fcrepo/
+users:
+    fedoraAdmin:
+        user: fedoraAdmin
+        password: XXXXXXXX 
+    user:
+        user: testuser
+        password: XXXXXXXX
+    adminuser:
+        user: adminuser
+        password: XXXXXXXX
+loglevel: warning 
+
