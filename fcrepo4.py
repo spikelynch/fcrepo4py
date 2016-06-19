@@ -22,6 +22,8 @@ from urllib.parse import urlparse
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 
+
+
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
 
 METHODS = {
@@ -46,11 +48,16 @@ RDF_PARSE = 'turtle'
 FC4_URL = 'http://fedora.info/definitions/v4/repository#'
 
 FC4_NS = Namespace(FC4_URL)
-
 FC4_LAST_MODIFIED = FC4_NS['lastModified']
 
-
 LDP_CONTAINS = 'http://www.w3.org/ns/ldp#contains'
+
+WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
+
+WEBAC_NS = Namespace(WEBAC_URL)
+
+READ = WEBAC_NS['Read']
+WRITE = WEBAC_NS['Write']
 
 DC_FIELDS = [
     'contributor',
@@ -113,20 +120,23 @@ class ResourceError(Error):
 
     Attributes:
         uri (str) -- the uri of the resource
+        user (str) -- the user who attempted the request
         response (requests.Response) -- the HTTP response
         status_code (int) -- the HTTP status returned by the request
         reason (str) -- the text version of the HTTP status code
         message (str) -- an error messsage
 """
 
-    def __init__(self, uri, response, message):
+    def __init__(self, uri, user, response, message):
         """Parameters:
 
         uri (str): the uri of the resource
+        user (str): the user who made the request
         response (requests.Response): the HTTP response
         message (str): additional message from the code throwing the exception
         """
         self.uri = uri
+        self.user = user
         self.response = response
         self.status_code = response.status_code
         self.reason = response.reason
@@ -161,8 +171,14 @@ class Repository(object):
                 self.logger.info("Log level set to '{}' by {}".format(configd['loglevel'], config))
             else:
                 self.logger.error("Warning: config {} matches no log level".format(configd['loglevel']))
+        self.logger.debug("Config = {}".format(configd))
         self.uri = configd['uri']
         self.users = configd['users']
+        if 'rdfdump' in configd:
+            self.rdfdump = configd['rdfdump']
+            self.logger.debug("Dumping rdf to {}".format(self.rdfdump))
+        else:
+            self.rdfdump = None
         self.set_user(user)
         if self.uri[-1:] != '/':
             self.uri += '/'
@@ -239,6 +255,7 @@ Default method is GET.
             self.logger.debug("API {} {}".format(method, uri))
             if headers:
                 self.logger.debug("headers={}".format(headers))
+            self.logger.debug("Authentication: {} {}".format(self.user, self.password))
             r = m(uri, auth=(self.user, self.password), headers=headers, data=data)
             return r
         else:
@@ -293,7 +310,7 @@ Default method is GET.
             return resource
         else:
             message = "get {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
-            raise ResourceError(uri, response, message)
+            raise ResourceError(uri, self.user, response, message)
 
 
 
@@ -325,10 +342,37 @@ Default method is GET.
             if slug:
                 headers['Slug'] = slug
         resource = self._add_resource(uri, method, headers, rdf)
+        #self.logger.debug(rdf)
         resource.rdf = metadata
         return resource
 
 
+    def add_acl(self, uri, path="acl", force=False):
+        """Add a new container and make it an ACL
+
+        Parameters:
+        uri (str) -- the path of the container to add to
+        path (str) -- path to new container, relative to uri
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        The acl will be created with a preset path, and RDF setting the ACL's
+        type.
+        """
+        rdf = Graph()
+        this = URIRef('')
+        rdf.add( ( this, RDF.type, WEBAC_NS['Acl']) )
+        rdf_text = rdf.serialize(format=RDF_MIME)
+        headers = { 'Content-Type': RDF_MIME }
+        method = 'PUT'
+        uri = self.pathconcat(uri, path)
+        self._ensure_path(uri, force)
+        if self._add_resource(uri, method, headers, rdf_text):
+            acl = Acl(self, uri)
+            acl.rdf = rdf
+            return acl
+        return None
+
+    
     def add_binary(self, uri, source, slug=None, path=None, force=None, mime=None):
         """Upload binary data to a container.
 
@@ -397,6 +441,7 @@ Default method is GET.
         """Internal method for PUT/POST: this does the error handling and
         builds the returned Resource object
         """
+        self._rdf_dump(data, uri)
         response = self.api(uri, method=method, headers=headers, data=data)
         if response.status_code == requests.codes.created:
             uri = response.text
@@ -404,7 +449,19 @@ Default method is GET.
         else:
             message = "{} {} failed: {} {}".format(method, uri, response.status_code, response.reason)
             self.logger.error(message)            
-            raise ResourceError(uri, response, message) 
+            raise ResourceError(uri, self.user, response, message) 
+
+
+    def _rdf_dump(self, data, uri):
+        if self.rdfdump:
+            try:
+                uri_path = uri.replace('/', '_')
+                dumpf = os.path.join(self.rdfdump, uri_path) + '.ttl'
+                with open(dumpf, 'wb') as df:
+                    self.logger.debug("Dumping RDF to {}".format(dumpf))
+                    df.write(data)
+            except TypeError as te:
+                pass   # this catches errors when data is not a bytes-like
 
 
         
@@ -435,16 +492,16 @@ Default method is GET.
     
 
         
-    def _handle_data(self, source):
-        """Take the data source passed to the add_binary function and turn it
-        into a stream-like thing, if it isn't one.
+    # def _handle_data(self, source):
+    #     """Take the data source passed to the add_binary function and turn it
+    #     into a stream-like thing, if it isn't one.
 
-        Parameters:
-        source (str or file-like thing)
+    #     Parameters:
+    #     source (str or file-like thing)
 
-        Returns:
-        a triple of ( mimetype (str), base name (str), stream (stream) )
-        """
+    #     Returns:
+    #     a triple of ( mimetype (str), base name (str), stream (stream) )
+    #     """
 
 
     
@@ -471,7 +528,7 @@ Default method is GET.
             return True
         else:
             message = "delete {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
-            raise ResourceError(uri, response, message)
+            raise ResourceError(uri, self.user, response, message)
 
 
 
@@ -658,7 +715,8 @@ is stored (as 'response')
         if not self.rdf:
             raise Error("Resource at uri {} is not an RDF-resource".format(self.uri))
         if not self.changes:
-            self.repo.warn("Call to rdf_write before any changes specified")
+            self.repo.logger.error("Call to rdf_write before any changes specified")
+            raise Error("No changes for rdf_write on {}".format(self.uri))
             return None
         
         # Make sure that the resource has a current set of RDF         
@@ -685,40 +743,46 @@ is stored (as 'response')
             return self
         else:
             message = "put RDF {} returned HTTP status {} {}".format(self.uri, response.status_code, response.reason)
-            raise ResourceError(self.uri, response, message)
+            raise ResourceError(self.uri, self.repo.user, response, message)
 
-    def acl_uri(self):
-        return self.repo.pathconcat(self.uri, FCR_ACCESS)
-        
-    def acl_get(self, effective=True):
-        """Get the ACL on this resource.  By default it gets the effective
-        ACL (inherited from parent) - use effective=True to switch this off)"""
 
-        headers = {  }
-        if effective:
-            headers['Effective'] = 1
-        acl_js = self.repo.get(self.acl_uri(), headers=headers)
-        acls = json.load(acl_js)
-        return acls
-        
 
-    def acl_set(self, acl):
-        """Applies an acl to the resource
-
-        Parameters:
-        acl - { user1: [ role1, role2 ], user2: [ role3 ] .. }
-              where userN and roleN are str
-
-        This method converts the acl data structure to JSON
+class Acl(Resource):
+    """Class representing a Web AC ACL"""
+    
+    def grant(self, path, user, access, uri):
+        """Grant a user an access level over a resource, specified by its
+        URI.  The authorisation has to be given a path relative
+        to the ACL: existing authorisations with this path will be overwritten.
+        Also adds a triple to the resource at uri pointing to this ACL
+        as its access source
         """
+        resource = self.repo.get(uri) # will raise ResourceError if not found
 
-        aclj = json.dumps(acl)
-        headers = { 'Content-Type': 'application/json' }
-        uri = self.acl_uri()
-        response = self.repo.api(uri, method="POST", headers=headers)
-        if response.status_code == requests.codes.created:
-            return response
-        else:
-            message = "Couldn't set access roles on {}: {} {}".format(uri, response.status_code, response.reason)
-            raise ResourceError(uri, response, message)
+        # in the example on the FC4 wiki, the order of creation is:
+        # - the acl resource
+        # - the resource to be protected (refers to the acl)
+        # - the authentication resource (refers to the acl and the protected)
+
+        # https://wiki.duraspace.org/display/FEDORA4x/Quick+Start+with+WebAC, 
+        resource.rdf.bind('acl', WEBAC_NS)
+        resource.rdf_add(WEBAC_NS['accessControl'], URIRef(self.uri))
+        resource.rdf_write()
+                
+        rdf = Graph()
+        rdf.bind('acl', WEBAC_NS)
+        this = URIRef('')
+        rdf.add( ( this, RDF.type, WEBAC_NS['Authorization']) )
+        rdf.add( ( this, WEBAC_NS['accessTo'], URIRef(uri) ) )
+        rdf.add( ( this, WEBAC_NS['mode'],     access ) )
+        rdf.add( ( this, WEBAC_NS['agent'],    Literal(user) ) )
         
+        auth = self.add_container(rdf, path=path, force=True)
+
+            
+        
+
+    def remove(self, path):
+        uri = self.repo.pathconcat(self.uri, path)
+        self.repo.delete(uri)
+        self.repo.obliterate(uri)
