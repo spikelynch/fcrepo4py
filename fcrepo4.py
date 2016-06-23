@@ -434,9 +434,7 @@ Default method is GET.
             if slug:
                 headers['Content-Disposition'] = 'attachment; filename="{}"'.format(slug)
             resource = self._add_resource(uri, method, headers, source)
-
- 
-            raise Error("add_binary only does files and URLs atm")
+            return resource
 
     def _is_url(self, source):
         """Tries to parse a data source string as a URL. If the result is

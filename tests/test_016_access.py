@@ -20,7 +20,7 @@ CMDATA = {
     }
 
 MDATA1 = {
-    'title': 'New object',
+    'title': 'Newobject',
     'description': 'An object which user 1 can write to',
     'creator': 'test_016_access.py'
 }
@@ -57,8 +57,8 @@ class TestACLs(fcrepotest.FCRepoContainerTest):
 
         self.logger.info("Current repo user = {}".format(self.repo.user))
 
-        acl.grant('autha', USER_A, fcrepo4.READ, uri)
-        acl.grant('authb1', USER_B, fcrepo4.READ, uri)
+        acl.grant('autha',  USER_A, fcrepo4.READ,  uri)
+        acl.grant('authb1', USER_B, fcrepo4.READ,  uri)
         acl.grant('authb2', USER_B, fcrepo4.WRITE, uri)
 
         self.repo.set_user('alice')
