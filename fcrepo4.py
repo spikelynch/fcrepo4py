@@ -21,7 +21,7 @@ import requests, os.path, mimetypes, json, yaml, logging, re
 from urllib.parse import urlparse
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
-
+import types
 
 
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
@@ -379,8 +379,9 @@ Default method is GET.
         Parameters
         uri (str) -- the path of the container at which to add it
         metadata (Graph) -- RDF
-        source (str, URI, file-like) -- a filename, URI or stream
+        source (str, URI, file-like, generator) -- a filename, URI or stream
         mime (str) -- MIME type
+        basename (str) -- 
         slug (str) -- preferred id
         path (str) -- relative path from uri
         force (boolean) -- whether to overwrite path if it exists
@@ -406,6 +407,7 @@ Default method is GET.
                 headers['Slug'] = slug
             self.logger.debug("POSTing binary to {} {}".format(uri, slug))
 
+            
         if type(source) == str:
             if self._is_url(source):
                 # open the source URL as a stream, then use the requests method
@@ -426,7 +428,14 @@ Default method is GET.
                 with open(source, 'rb') as fh:
                     resource = self._add_resource(uri, method, headers, fh)
                 return resource
-        else:
+        else: # let's assume it's a file-like thing
+            if mime:
+                headers['Content-type'] = mime
+            if slug:
+                headers['Content-Disposition'] = 'attachment; filename="{}"'.format(slug)
+            resource = self._add_resource(uri, method, headers, source)
+
+ 
             raise Error("add_binary only does files and URLs atm")
 
     def _is_url(self, source):
