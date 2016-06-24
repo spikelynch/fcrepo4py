@@ -1,7 +1,7 @@
 import unittest
 import fcrepo4, fcrepotest
 import logging, requests
-
+import filecmp
 
 
 MDATA1 = {
@@ -20,6 +20,8 @@ MDATA2 = {
     
 PATH = 'test_014'
 FILE = 'tests/bird.jpg'
+FILE2 = 'tests/bird2.jpg'
+MIME_TYPE = 'image/jpeg'
 
 URL_BINARY = 'http://apod.nasa.gov/apod/image/1605/Trumpler14c_ward.jpg'
 URL_BASENAME = URL_BINARY.split('/')[-1]
@@ -44,7 +46,19 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         uri = b.uri
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
-        
+
+    def test_post_binary(self):
+        """Tests uploading a binary with a POST request"""
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        BASENAME = FILE.split('/')[-1]
+        b = c.add_binary(FILE, slug=BASENAME)
+        self.assertIsNotNone(b)
+        uri = b.uri
+        b2 = self.repo.get(uri)
+        self.assertIsNotNone(b2)
+
+                
     def test_conflict_binary(self):
         """Tests trying to upload the same path twice without force"""
 
@@ -63,9 +77,8 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b = c.add_binary(FILE, path=FILE)
         self.assertIsNotNone(b)
         b2 = c.add_binary(FILE, path=FILE, force=True)
-        self.assertIsNotNone(b)
-        # test the modification
-
+        self.assertIsNotNone(b2)
+        
 
     def test_binary_from_url(self):
         """Tests adding a container to an assigned path with a PUT request.
@@ -77,6 +90,20 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b = c.add_binary(URL_BINARY, path=URL_BASENAME)
         self.assertIsNotNone(b)
         self.assertEqual(b.uri, cpath + '/' + URL_BASENAME)
+        uri = b.uri
+        b2 = self.repo.get(uri)
+        self.assertIsNotNone(b2)
+
+
+    def test_binary_from_filehandle(self):
+        """Tests adding a container from a filehandle with a POST"""
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        BASENAME = FILE.split('/')[-1]
+        b = None
+        with open(FILE, 'rb') as fh:
+            b = c.add_binary(fh, slug=BASENAME, mime=MIME_TYPE)
+        self.assertIsNotNone(b)
         uri = b.uri
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)

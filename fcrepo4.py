@@ -45,6 +45,8 @@ METHODS = {
 RDF_MIME = 'text/turtle'
 RDF_PARSE = 'turtle'    
 
+DEFAULT_MIME_TYPE = 'application/octet-stream'
+
 FC4_URL = 'http://fedora.info/definitions/v4/repository#'
 
 FC4_NS = Namespace(FC4_URL)
@@ -307,6 +309,8 @@ Default method is GET.
             resource = Resource(self, uri, response=response)
             if response.headers['Content-type'] == 'text/turtle':
                 resource._parse_rdf(response.text)
+            else:
+                resource
             return resource
         else:
             message = "get {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
@@ -373,7 +377,7 @@ Default method is GET.
         return None
 
     
-    def add_binary(self, uri, source, slug=None, path=None, force=None, mime=None):
+    def add_binary(self, uri, source, slug=None, path=None, force=None, mime=DEFAULT_MIME_TYPE):
         """Upload binary data to a container.
 
         Parameters
@@ -429,8 +433,8 @@ Default method is GET.
                     resource = self._add_resource(uri, method, headers, fh)
                 return resource
         else: # let's assume it's a file-like thing
-            if mime:
-                headers['Content-type'] = mime
+            self.logger.info("Got a file-like thing")
+            headers['Content-type'] = mime
             if slug:
                 headers['Content-Disposition'] = 'attachment; filename="{}"'.format(slug)
             resource = self._add_resource(uri, method, headers, source)
@@ -692,7 +696,7 @@ is stored (as 'response')
         """
         return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
         
-    def add_binary(self, source, slug=None, path=None, force=False):
+    def add_binary(self, source, slug=None, path=None, force=False, mime=DEFAULT_MIME_TYPE):
         """Add a new binary object to this resource.
 
         Parameters:
@@ -705,7 +709,7 @@ is stored (as 'response')
         add_container
         
         """
-        return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force)
+        return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force, mime=mime)
 
     def rdf_read(self):
         """Read the metadata from Fedora"""
