@@ -185,7 +185,7 @@ class Repository(object):
         if self.uri[-1:] != '/':
             self.uri += '/'
         self.pathre = re.compile("^{}rest/(.*)$".format(self.uri))
-
+        self.cf = configd
 
     def set_user(self, user):
         if user in self.users:
