@@ -29,3 +29,12 @@ Sample usage:
 ## Sample code
 
 See this [sample script to upload spreadsheet data to Fedora 4](https://github.com/ptsefton/spreadsheet-to-fedora-commons-4).
+
+## Tests
+
+Note that test_016_access.py assumes a couple of test users on the Fedora
+server.
+
+A tomcat-users.xml with the correct users is in the tests/ directory. To
+install it, copy it to /var/lib/tomcat7/conf/ on the fcrepo machine and 
+restart Tomcat (sudo service tomcat7 restart)
