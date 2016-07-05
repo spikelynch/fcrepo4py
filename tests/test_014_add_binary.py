@@ -37,7 +37,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         super(TestPutBinary, self).tearDown(PATH)
             
     def test_put_binary(self):
-        """Tests uploading a binary with a PUT request"""
+        """Upload a binary with a PUT request"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         b = c.add_binary(FILE, path=FILE)
@@ -48,7 +48,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(b2)
 
     def test_post_binary(self):
-        """Tests uploading a binary with a POST request"""
+        """Upload a binary with a POST request"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         BASENAME = FILE.split('/')[-1]
@@ -60,8 +60,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
 
                 
     def test_conflict_binary(self):
-        """Tests trying to upload the same path twice without force"""
-
+        """Upload binary to the same path twice without force"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         b = c.add_binary(FILE, path=FILE)
@@ -70,8 +69,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertRaises(fcrepo4.ConflictError, noforce)
 
     def test_overwrite_binary(self):
-        """Tests trying to upload the same path twice with force"""
-
+        """Upload binary to the same path twice with force"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         b = c.add_binary(FILE, path=FILE)
@@ -81,9 +79,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         
 
     def test_binary_from_url(self):
-        """Tests adding a container to an assigned path with a PUT request.
-
-"""
+        """Add a binary from a URL."""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         BASENAME = 'pic_from_url.jpg'

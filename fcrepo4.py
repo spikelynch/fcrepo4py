@@ -297,8 +297,13 @@ Default method is GET.
     def get(self, uri, headers=None):
         """The basic method for retrieving a resource.
 
-        Fetches the metadata for the resource at uri, raises a ResourceError
-        if the status code was something other than ok
+        Looks up the resource at uri. If the request is a success, creates
+        a Resource object with the metadata and http response.
+
+        If the request returned a not found error, returns None
+
+        If the request returned any other kind of non-OK status, throws
+        a ResourceError with the status code and reason.
         """
 
         if headers:
@@ -309,9 +314,9 @@ Default method is GET.
             resource = Resource(self, uri, response=response)
             if response.headers['Content-type'] == 'text/turtle':
                 resource._parse_rdf(response.text)
-            else:
-                resource
             return resource
+        elif response.status_code == requests.codes.not_found:
+            return None
         else:
             message = "get {} returned HTTP status {} {}".format(uri, response.status_code, response.reason)
             raise ResourceError(uri, self.user, response, message)

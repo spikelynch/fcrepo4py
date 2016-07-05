@@ -4,6 +4,7 @@ import fcrepo4
 class TestPaths(unittest.TestCase):
         
     def test_paths(self):
+        """Path-to-uri and uri-to-path conversions"""
         repo = fcrepo4.Repository()
         self.assertIsNotNone(repo)
         path = 'this/is/a/made/up/path'

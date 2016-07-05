@@ -42,7 +42,7 @@ class TestModifyTriples(fcrepotest.FCRepoContainerTest):
         super(TestModifyTriples, self).tearDown(CPATH)
             
     def test_update_triples(self):
-        """Creates a container, set some triples on it, update them"""
+        """Modify the RDF of a container"""
         c = self.repo.get(self.repo.path2uri(CPATH))
 
         resource = c.add_container(self.repo.dc_rdf(MDATA1), path="resource")
@@ -92,8 +92,7 @@ class TestModifyTriples(fcrepotest.FCRepoContainerTest):
 
             
     def test_add_remove_triples(self):
-        """Creates a container and adds multiple triples with the same
-        predicate"""
+        """Adding multiple triples with the same predicate"""
 
         c = self.repo.get(self.repo.path2uri(CPATH))
 

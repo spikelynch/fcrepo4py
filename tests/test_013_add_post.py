@@ -32,8 +32,7 @@ class TestPost(fcrepotest.FCRepoContainerTest):
 
         
     def test_add(self):
-        """Tests adding a container inside a container, without specifying
-        the path - this uses a POST request.
+        """Tests adding a container inside a container with a POST
 
         Tests three scenarios:
 

@@ -34,7 +34,7 @@ class TestPut(fcrepotest.FCRepoTest):
 
                 
     def test_add_with_path(self):
-        """Tests adding a container to an assigned path with a PUT request.
+        """Tests adding a container to an assigned path with a PUT request
 
         Checks three scenarios:
 
@@ -60,6 +60,13 @@ class TestPut(fcrepotest.FCRepoTest):
         for dcfield in [ 'title', 'description', 'creator' ]:
             self.assertEqual(md[dcfield], MDATA1[dcfield])
 
+        c2 = self.repo.get(c.uri)
+        self.assertIsNotNone(c2)
+
+        md2 = c2.dc()
+
+        for dcfield in [ 'title', 'description', 'creator' ]:
+            self.assertEqual(md2[dcfield], MDATA1[dcfield])
         
         noforce = lambda: root.add_container(g2, path=PATH)
         self.assertRaises(fcrepo4.ConflictError, noforce)
@@ -76,6 +83,7 @@ class TestPut(fcrepotest.FCRepoTest):
             self.assertEqual(md2[dcfield], MDATA2[dcfield])
         self.repo.delete(c2.uri)
         self.repo.obliterate(c2.uri)
+
 
                 
     def tearDown(self):

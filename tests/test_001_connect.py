@@ -4,6 +4,7 @@ import fcrepo4
 class TestConnect(unittest.TestCase):
         
     def test_connect(self):
+        """Connect to repository"""
         repo = fcrepo4.Repository()
         repo.set_user('fedoraAdmin')
         self.assertIsNotNone(repo)
