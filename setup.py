@@ -23,7 +23,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.1.1c',
+    version='1.1.2',
 
     description='A Pythonic interface to Fedora Commons 4',
     long_description=long_description,
