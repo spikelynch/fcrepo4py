@@ -35,7 +35,12 @@ class TestDelegated(fcrepotest.FCRepoContainerTest):
         super(TestDelegated, self).tearDown(CPATH)
             
     def test_delegate_identity(self):
+        """Test delegated identity"""
         c = self.container
+
+        # switch repository to delegate mode
+
+        self.repo.delegated = True
 
         # set up a resource which only Bob can read
 
@@ -48,22 +53,19 @@ class TestDelegated(fcrepotest.FCRepoContainerTest):
         acl.grant('authb1', USER_A, fcrepo4.READ, uri)
         acl.grant('authb2', USER_A, fcrepo4.WRITE, uri)
 
-        # try to look it up as the other user
-        #direct = lambda: self.repo.get(uri)
-        #self.repo.set_user(USER_B)
-        #self.assertRaises(fcrepo4.ResourceError, direct)
+        # set user with delegation
 
-        # set user to admin and try to delegate to first one then
-        # the other user
-        self.repo.set_user('fedoraAdmin')
-
-        delegated = lambda: self.repo.get(uri, headers={ 'On-Behalf-Of': USER_A})
+        self.repo.set_user(USER_A)
+        delegated = lambda: self.repo.get(uri)
         getusera = delegated()
         self.assertIsNotNone(getusera)
 
-        delegated = lambda: self.repo.get(uri, headers={ 'On-Behalf-Of': USER_B})
+        self.repo.set_user(USER_B)
+        delegated = lambda: self.repo.get(uri)
         self.assertRaises(fcrepo4.ResourceError, delegated)
 
+        self.repo.delegated = False
+        self.repo.set_user('fedoraAdmin')
 
         
 if __name__ == '__main__':

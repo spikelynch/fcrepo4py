@@ -181,13 +181,25 @@ class Repository(object):
             self.logger.debug("Dumping rdf to {}".format(self.rdfdump))
         else:
             self.rdfdump = None
+        if 'delegated' in configd:
+            self.delegated = bool(configd['delegated'])
+        else:
+            self.delegated = False
         self.set_user(user)
         if self.uri[-1:] != '/':
             self.uri += '/'
         self.pathre = re.compile("^{}rest/(.*)$".format(self.uri))
         self.cf = configd
 
+        
     def set_user(self, user):
+        """Sets the current user.
+
+        Subsequent REST actions will be authenticated with this user's
+        credentials. If the repo is in delegated mode, actions will be
+        authenticated with the fedoraAdmin user and delegated to the current
+        user with HTTP headers.
+        """
         if user in self.users:
             self.user = self.users[user]['user']
             self.password = self.users[user]['password']
@@ -255,10 +267,18 @@ Default method is GET.
         if method in METHODS:
             m = METHODS[method]
             self.logger.debug("API {} {}".format(method, uri))
+            self.logger.debug("Authentication: {} {}".format(self.user, self.password))
+            if self.delegated and self.user != 'fedoraAdmin':
+                auth = ( self.users['fedoraAdmin']['user'], self.users['fedoraAdmin']['password'] )
+                if not headers:
+                    headers = {}
+                headers['On-Behalf-Of'] = self.user
+                self.logger.warn("Delegated authentication as {}".format(self.user))
+            else:
+                auth = (self.user, self.password)
             if headers:
                 self.logger.debug("headers={}".format(headers))
-            self.logger.debug("Authentication: {} {}".format(self.user, self.password))
-            r = m(uri, auth=(self.user, self.password), headers=headers, data=data)
+            r = m(uri, auth=auth, headers=headers, data=data)
             return r
         else:
             return None
