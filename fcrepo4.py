@@ -52,7 +52,7 @@ FC4_URL = 'http://fedora.info/definitions/v4/repository#'
 FC4_NS = Namespace(FC4_URL)
 FC4_LAST_MODIFIED = FC4_NS['lastModified']
 
-LDP_CONTAINS = 'http://www.w3.org/ns/ldp#contains'
+LDP_CONTAINS = URIRef('http://www.w3.org/ns/ldp#contains')
 
 WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
 
@@ -334,6 +334,7 @@ Default method is GET.
             resource = Resource(self, uri, response=response)
             if response.headers['Content-type'] == 'text/turtle':
                 resource._parse_rdf(response.text)
+            resource = resource.check_type()
             return resource
         elif response.status_code == requests.codes.not_found:
             return None
@@ -581,6 +582,21 @@ is stored (as 'response')
             self.response = None
         self.changes = []
 
+    def check_type(self):
+        """See if this resource's RDF indicates that it should be one of the
+        specialised subclasses like Acl"""
+
+        ts = self.rdf_get_all(RDF.type)
+        newclass = None
+        if WEBAC_NS['Acl'] in ts:
+            newclass = Acl
+        elif WEBAC_NS['Authorization'] in ts:
+            newclass = Auth
+        if newclass:
+            return newclass(self.repo, self.uri, metadata=self.rdf, response=self.response)
+        return self
+
+        
     def data(self):
         """Returns the data in the resource as a single lump"""
         if self.response:
@@ -605,12 +621,10 @@ is stored (as 'response')
         """Put the Resource to the repository, using force. Used when
         writing Auths and other specialised resources."""
 
-        self.repo.logger.warning("put to {}".format(self.uri))
         self.repo._ensure_path(self.uri, True)
         rdf_text = self.rdf.serialize(format=RDF_MIME)
         headers = { 'Content-Type': RDF_MIME }
         response = self.repo.api(self.uri, method='PUT', headers=headers, data=rdf_text)
-        self.repo.logger.warning("response {}".format(response.status_code))
         if response.status_code == requests.codes.no_content:
             return self
         elif response.status_code == requests.codes.created:
@@ -623,7 +637,7 @@ is stored (as 'response')
 
     def children(self):
         """Returns a list of paths of this resource's FEDORA children"""
-        return self.rdf.objects((URIRef(self.uri), LDP_CONTAINS, None))
+        return self.rdf.objects(subject=URIRef(self.uri), predicate=LDP_CONTAINS)
 
     def rdf_search(self, predfilter):
         """Returns a list of all the objects where predfilter(p) is true"""
@@ -808,7 +822,6 @@ class Acl(Resource):
         resource.rdf_write()
     
         authuri = self.auth_path(user, access)
-        self.repo.logger.info("ACL uri = {} auth uri = {}".format(self.uri, authuri))
         auth = Auth(self.repo, authuri)
         auth.put(user, access, uri)
         self.auths.append(auth)
@@ -839,10 +852,17 @@ class Acl(Resource):
             uri2: { u1: ... }
         }
         """
-        pass
-#        for auth in self.children():
-            
-        
+        acls = {}
+        for uri in self.children():
+            auth = self.repo.get(uri)
+            if auth:
+                agent, access, uri = auth.get()
+                if uri not in acls:
+                    acls[uri] = {}
+                if agent not in acls[uri]:
+                    acls[uri][agent] = []
+                acls[uri][agent].append(access)
+        return acls
         
     def permissions(self, uri):
         """Returns the permissions on a uri as a dict-by-action:
@@ -895,7 +915,7 @@ class Auth(Resource):
         """Decodes the RDF into a tuple of (agent, access, subject)"""
         self.accessto = str(self.rdf_get(WEBAC_NS['accessTo']))
         access = self.rdf_get(WEBAC_NS['mode'])
-        if access[:-4] == 'Read':
+        if access[-4:] == 'Read':
             self.access = READ
         else:
             self.access = WRITE

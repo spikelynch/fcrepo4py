@@ -73,6 +73,14 @@ class TestACLs(fcrepotest.FCRepoContainerTest):
         r3 = r2.add_container(md2)
         self.assertIsNotNone(r3)
 
+        self.repo.set_user('fedoraAdmin')
+        acluri = acl.uri
+        acl2 = self.repo.get(acluri)
+        self.logger.info("acl2 = {}".format(type(acl2)))
+        self.assertTrue(type(acl2) == fcrepo4.Acl)
+
+        acls = acl2.acls()
+        self.logger.info(acls)
 
     def dump_rdf(self, resource, filename):
         resource.rdf_read()
