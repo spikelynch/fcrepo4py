@@ -570,6 +570,7 @@ is stored (as 'response')
 """
         self.repo = repo
         self.uri = uri
+        self.rdf = None
         if metadata:
             if type(metadata) == Graph:
                 self.rdf = metadata
@@ -586,6 +587,8 @@ is stored (as 'response')
         """See if this resource's RDF indicates that it should be one of the
         specialised subclasses like Acl"""
 
+        if not self.rdf:
+            return self
         ts = self.rdf_get_all(RDF.type)
         newclass = None
         if WEBAC_NS['Acl'] in ts:
