@@ -57,9 +57,9 @@ class TestACLs(fcrepotest.FCRepoContainerTest):
 
         self.logger.info("Current repo user = {}".format(self.repo.user))
 
-        acl.grant('autha',  USER_A, fcrepo4.READ,  uri)
-        acl.grant('authb1', USER_B, fcrepo4.READ,  uri)
-        acl.grant('authb2', USER_B, fcrepo4.WRITE, uri)
+        acl.grant(USER_A, fcrepo4.READ,  uri)
+        acl.grant(USER_B, fcrepo4.READ,  uri)
+        acl.grant(USER_B, fcrepo4.WRITE, uri)
 
         self.repo.set_user('alice')
         r1 = self.repo.get(uri)

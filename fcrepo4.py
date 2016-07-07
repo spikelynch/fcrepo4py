@@ -58,8 +58,8 @@ WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
 
 WEBAC_NS = Namespace(WEBAC_URL)
 
-READ = WEBAC_NS['Read']
-WRITE = WEBAC_NS['Write']
+READ = 'Read'
+WRITE = 'Write'
 
 DC_FIELDS = [
     'contributor',
@@ -263,7 +263,7 @@ plain POST) or files (for file uploads)
 
 Default method is GET.
 """
-        self.uri2path(uri)  # safety check: throw URI error if it's bad
+        self.uri2path(uri)  # safety check: will throw an URI error if it's bad
         if method in METHODS:
             m = METHODS[method]
             self.logger.debug("API {} {}".format(method, uri))
@@ -273,7 +273,7 @@ Default method is GET.
                 if not headers:
                     headers = {}
                 headers['On-Behalf-Of'] = self.user
-                self.logger.warn("Delegated authentication as {}".format(self.user))
+                self.logger.debug("Delegated authentication as {}".format(self.user))
             else:
                 auth = (self.user, self.password)
             if headers:
@@ -527,27 +527,6 @@ Default method is GET.
                 raise ConflictError(message)
     
 
-        
-    # def _handle_data(self, source):
-    #     """Take the data source passed to the add_binary function and turn it
-    #     into a stream-like thing, if it isn't one.
-
-    #     Parameters:
-    #     source (str or file-like thing)
-
-    #     Returns:
-    #     a triple of ( mimetype (str), base name (str), stream (stream) )
-    #     """
-
-
-    
-
-
-
-        
-
-
-    
 
     def delete(self, uri):
         """Deletes a resource"""
@@ -786,12 +765,10 @@ is stored (as 'response')
 class Acl(Resource):
     """Class representing a Web AC ACL"""
     
-    def grant(self, path, user, access, uri):
+    def grant(self, user, access, uri):
         """Grant a user an access level over a resource, specified by its
-        URI.  The authorisation has to be given a path relative
-        to the ACL: existing authorisations with this path will be overwritten.
-        Also adds a triple to the resource at uri pointing to this ACL
-        as its access source
+        URI. Also adds a triple to the resource at uri pointing to this ACL
+        as its access source.
         """
         resource = self.repo.get(uri) # will raise ResourceError if not found
 
@@ -810,15 +787,20 @@ class Acl(Resource):
         this = URIRef('')
         rdf.add( ( this, RDF.type, WEBAC_NS['Authorization']) )
         rdf.add( ( this, WEBAC_NS['accessTo'], URIRef(uri) ) )
-        rdf.add( ( this, WEBAC_NS['mode'],     access ) )
+        rdf.add( ( this, WEBAC_NS['mode'],     WEBAC_NS[access] ) )
         rdf.add( ( this, WEBAC_NS['agent'],    Literal(user) ) )
-        
+        path = user + '_' + access
         auth = self.add_container(rdf, path=path, force=True)
 
-            
+    def revoke(self, user, access, uri):
+        """Revoke a user's access level to a resource, specified by its
+        URI. Doesn't remove the triple pointing to this ACL from the URI because
+        there may be other auths, so it's not symmetrical.
+        """
+        resource = self.repo.get(uri) 
+        auth_uri = self.repo.pathconcat(self.uri, user + ':' + access)
+        if self.get(auth_uri):
+            self.repo.delete(auth_uri)
+            self.repo.obliterate(auth_uri)
         
 
-    def remove(self, path):
-        uri = self.repo.pathconcat(self.uri, path)
-        self.repo.delete(uri)
-        self.repo.obliterate(uri)

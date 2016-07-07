@@ -23,7 +23,7 @@ MDATA1 = {
     'creator': 'test_017_delegated.py'
 }
 
-
+# This needs to be better thought out. 
 
 
 class TestDelegated(fcrepotest.FCRepoContainerTest):
@@ -50,8 +50,8 @@ class TestDelegated(fcrepotest.FCRepoContainerTest):
         resource = c.add_container(md, slug='my_container')
         uri = resource.uri
 
-        acl.grant('authb1', USER_A, fcrepo4.READ, uri)
-        acl.grant('authb2', USER_A, fcrepo4.WRITE, uri)
+        acl.grant(USER_A, fcrepo4.READ, uri)
+        acl.grant(USER_A, fcrepo4.WRITE, uri)
 
         # set user with delegation
 
