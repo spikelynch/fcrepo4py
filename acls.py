@@ -29,9 +29,11 @@ resource = c.add_container(md, slug='my_container')
 
 uri = resource.uri
 
-acl.grant('autha', 'alice', fcrepo4.READ, uri)
-acl.grant('authb1', 'bob', fcrepo4.READ, uri)
-acl.grant('authb2', 'bob', fcrepo4.WRITE, uri)
+print("resource = {} acl = {}".format(c.uri, acl.uri))
+
+acl.grant('alice', fcrepo4.READ, uri)
+acl.grant('bob', fcrepo4.READ, uri)
+acl.grant('bob', fcrepo4.WRITE, uri)
 
         
 try:
@@ -41,6 +43,7 @@ try:
     r5 = r4.add_container(md3)
     print("Alice added child at {}".format(r5.uri))
 except fcrepo4.ResourceError as e:
+    print("Alice can't add child to {}".format(uri))
     print(e)
 
 
@@ -51,6 +54,7 @@ try:
     r3 = r2.add_container(md2)
     print("Bob added child at {}".format(r3.uri))
 except fcrepo4.ResourceError as e:
+    print("Bob can't add child to {}".format(uri))
     print(e)
 
 

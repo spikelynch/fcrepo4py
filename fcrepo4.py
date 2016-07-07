@@ -371,7 +371,6 @@ Default method is GET.
             if slug:
                 headers['Slug'] = slug
         resource = self._add_resource(uri, method, headers, rdf)
-        #self.logger.debug(rdf)
         resource.rdf = metadata
         return resource
 
@@ -602,9 +601,25 @@ is stored (as 'response')
         self.rdf = Graph()
         self.rdf.parse(data=rdf, format=RDF_PARSE)
 
-    def bytes(self):
-        """TBD - stream the resources' bytes"""
-        pass
+    def put(self):
+        """Put the Resource to the repository, using force. Used when
+        writing Auths and other specialised resources."""
+
+        self.repo.logger.warning("put to {}".format(self.uri))
+        self.repo._ensure_path(self.uri, True)
+        rdf_text = self.rdf.serialize(format=RDF_MIME)
+        headers = { 'Content-Type': RDF_MIME }
+        response = self.repo.api(self.uri, method='PUT', headers=headers, data=rdf_text)
+        self.repo.logger.warning("response {}".format(response.status_code))
+        if response.status_code == requests.codes.no_content:
+            return self
+        elif response.status_code == requests.codes.created:
+            return self
+        else:
+            message = "put RDF {} returned HTTP status {} {}".format(self.uri, response.status_code, response.reason)
+            raise ResourceError(self.uri, self.repo.user, response, message)
+
+
 
     def children(self):
         """Returns a list of paths of this resource's FEDORA children"""
@@ -681,8 +696,8 @@ is stored (as 'response')
             if value:
                 dc[field] = str(value)
         return dc
-            
-    
+
+        
     def add_container(self, metadata, slug=None, path=None, force=False):
         """Add a new container to this resource.
 
@@ -764,7 +779,17 @@ is stored (as 'response')
 
 class Acl(Resource):
     """Class representing a Web AC ACL"""
-    
+
+    def __init__(self, repo, uri, metadata=None, response=None):
+        """Creator has to set the auths list"""
+        super(Acl, self).__init__(repo, uri, metadata=metadata, response=response)
+        self.auths = []
+        
+    def auth_path(self, user, access):
+        """Standard path for an auth granting user access"""
+        return self.repo.pathconcat(self.uri, user + '_' + access)
+
+            
     def grant(self, user, access, uri):
         """Grant a user an access level over a resource, specified by its
         URI. Also adds a triple to the resource at uri pointing to this ACL
@@ -781,26 +806,98 @@ class Acl(Resource):
         resource.rdf.bind('acl', WEBAC_NS)
         resource.rdf_add(WEBAC_NS['accessControl'], URIRef(self.uri))
         resource.rdf_write()
-                
-        rdf = Graph()
-        rdf.bind('acl', WEBAC_NS)
-        this = URIRef('')
-        rdf.add( ( this, RDF.type, WEBAC_NS['Authorization']) )
-        rdf.add( ( this, WEBAC_NS['accessTo'], URIRef(uri) ) )
-        rdf.add( ( this, WEBAC_NS['mode'],     WEBAC_NS[access] ) )
-        rdf.add( ( this, WEBAC_NS['agent'],    Literal(user) ) )
-        path = user + '_' + access
-        auth = self.add_container(rdf, path=path, force=True)
+    
+        authuri = self.auth_path(user, access)
+        self.repo.logger.info("ACL uri = {} auth uri = {}".format(self.uri, authuri))
+        auth = Auth(self.repo, authuri)
+        auth.put(user, access, uri)
+        self.auths.append(auth)
 
+        
     def revoke(self, user, access, uri):
         """Revoke a user's access level to a resource, specified by its
         URI. Doesn't remove the triple pointing to this ACL from the URI because
         there may be other auths, so it's not symmetrical.
         """
         resource = self.repo.get(uri) 
-        auth_uri = self.repo.pathconcat(self.uri, user + ':' + access)
+        auth_uri = self.auth_path(user, access)
+
         if self.get(auth_uri):
             self.repo.delete(auth_uri)
             self.repo.obliterate(auth_uri)
-        
 
+
+            
+
+
+                        
+    def acls(self):
+        """Returns all of the ACLs permissions as a dict-by-uri-then-user
+
+        {
+            uri1: { u1: [ 'Read' ], u2: [ 'Read', 'Write' ] },
+            uri2: { u1: ... }
+        }
+        """
+        pass
+#        for auth in self.children():
+            
+        
+        
+    def permissions(self, uri):
+        """Returns the permissions on a uri as a dict-by-action:
+
+        {
+            'Read': [ u1, u2, u3 ],
+            'Write': [ u1, u2 ]
+        }
+        """
+        pass
+
+    def users(self, uri):
+        """Returns the permissions on a uri as a dict-by-user:
+
+        {
+            u1: [ 'Read', 'Write' ],
+            u2: [ 'Read', 'Write' ],
+            u3: [ 'Write'
+        }
+        """
+        pass
+
+
+
+class Auth(Resource):
+    """A Resource which represents an authentication in an ACL.
+
+    The Auth class encapsulates the logic for reading and writing the RDF
+    triples which WebAC stores.
+    """
+    
+    
+    def put(self, agent, access, uri):
+        """Generates the correct RDF for granting agent access to the
+        subject (URI) and PUTs it to the repository, using force"""
+
+        self.agent = agent
+        self.access = access
+        self.accessto = uri
+        self.rdf = Graph()
+        self.rdf.bind('acl', WEBAC_NS)
+        this = URIRef('')
+        self.rdf.add( ( this, RDF.type, WEBAC_NS['Authorization']) )
+        self.rdf.add( ( this, WEBAC_NS['accessTo'], URIRef(uri) ) )
+        self.rdf.add( ( this, WEBAC_NS['mode'],     WEBAC_NS[access] ) )
+        self.rdf.add( ( this, WEBAC_NS['agent'],    Literal(agent) ) )
+        super(Auth, self).put()
+        
+    def get(self):
+        """Decodes the RDF into a tuple of (agent, access, subject)"""
+        self.accessto = str(self.rdf_get(WEBAC_NS['accessTo']))
+        access = self.rdf_get(WEBAC_NS['mode'])
+        if access[:-4] == 'Read':
+            self.access = READ
+        else:
+            self.access = WRITE
+        self.agent = str(self.rdf_get(WEBAC_NS['agent']))
+        return ( self.agent, self.access, self.accessto )
