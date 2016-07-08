@@ -1,5 +1,5 @@
 import unittest
-import fcrepo4, fcrepotest
+import fcrepo4, fcrepotest, fcrepo4.resource
 import logging, requests
 from rdflib import Literal, URIRef
 from rdflib.namespace import DC, Namespace
@@ -77,7 +77,7 @@ class TestACLs(fcrepotest.FCRepoContainerTest):
         acluri = acl.uri
         acl2 = self.repo.get(acluri)
         self.logger.info("acl2 = {}".format(type(acl2)))
-        self.assertTrue(type(acl2) == fcrepo4.Acl)
+        self.assertTrue(type(acl2) == fcrepo4.resource.Acl)
 
         acls = acl2.acls()
         self.logger.info(acls)

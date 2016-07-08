@@ -1,8 +1,7 @@
 #import requests, os.path, mimetypes, json, yaml, logging, re
 #from urllib.parse import urlparse
 
-#import fcrepo4
-
+import requests
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 
@@ -20,6 +19,24 @@ RDF_REMOVE = 2
 
 WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
 WEBAC_NS = Namespace(WEBAC_URL)
+
+DC_FIELDS = [
+    'contributor',
+    'coverage',
+    'creator',
+    'date',
+    'description',
+    'format',
+    'identifier',
+    'language',
+    'publisher',
+    'relation',
+    'rights',
+    'source',
+    'subject',
+    'title',
+    'type'
+    ]
 
 
 class Resource(object):
@@ -100,8 +117,8 @@ is stored (as 'response')
         writing Auths and other specialised resources."""
 
         self.repo._ensure_path(self.uri, True)
-        rdf_text = self.rdf.serialize(format=fcrepo4.RDF_MIME)
-        headers = { 'Content-Type': fcrepo4.RDF_MIME }
+        rdf_text = self.rdf.serialize(format=RDF_MIME)
+        headers = { 'Content-Type': RDF_MIME }
         response = self.repo.api(self.uri, method='PUT', headers=headers, data=rdf_text)
         if response.status_code == requests.codes.no_content:
             return self
@@ -183,7 +200,7 @@ is stored (as 'response')
     def dc(self):
         """Extracts all DC values and returns a dict"""
         dc = {}
-        for field in fcrepo4.DC_FIELDS:
+        for field in DC_FIELDS:
             value = self.rdf_get(DC[field])
             if value:
                 dc[field] = str(value)
@@ -225,7 +242,7 @@ is stored (as 'response')
     def rdf_read(self):
         """Read the metadata from Fedora"""
     
-        most_recent = self.repo.get(self.uri, headers={ 'Accept': fcrepo4.RDF_MIME })
+        most_recent = self.repo.get(self.uri, headers={ 'Accept': RDF_MIME })
         self.rdf = most_recent.rdf
         return self.rdf
     
@@ -246,7 +263,7 @@ is stored (as 'response')
         self.rdf_read()
 
         with open('dump-before.turtle', 'wb') as tf:
-            tf.write(self.rdf.serialize(format=fcrepo4.RDF_MIME))
+            tf.write(self.rdf.serialize(format=RDF_MIME))
         self.repo.logger.debug("Change list = {}".format(self.changes))
         
         for ( t, p, o ) in self.changes:
@@ -256,10 +273,10 @@ is stored (as 'response')
             if t == RDF_REPLACE or t == RDF_ADD:
                 self.rdf.add((URIRef(self.uri), p, o))
 
-        rdf = self.rdf.serialize(format=fcrepo4.RDF_MIME)
+        rdf = self.rdf.serialize(format=RDF_MIME)
         with open('dump-after.turtle', 'wb') as tf:
             tf.write(rdf)
-        headers = { 'Content-type': fcrepo4.RDF_MIME }
+        headers = { 'Content-type': RDF_MIME }
         response = self.repo.api(self.uri, method='PUT', headers=headers, data=rdf)
         if response.status_code == requests.codes.no_content:
             return self

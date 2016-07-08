@@ -23,7 +23,7 @@ from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 import types
 
-from fcrepo4.resource import Resource
+from fcrepo4.resource import Resource, Acl
 
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
 

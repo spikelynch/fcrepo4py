@@ -1,1 +1,1 @@
-from .repository import Repository
+from .repository import Repository, Error, URIError, ConflictError, ResourceError
