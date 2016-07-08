@@ -1,15 +1,25 @@
 #import requests, os.path, mimetypes, json, yaml, logging, re
 #from urllib.parse import urlparse
 
-import fcrepo4
+#import fcrepo4
 
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
+
+# the following are what the code uses as a serialisation format for
+# RDF between the repository and the Resource objects: the first is
+# the mime type requested of the server, the second is the rdflib parser
+    
+RDF_MIME = 'text/turtle'
+RDF_PARSE = 'turtle'    
 
 
 RDF_ADD = 0
 RDF_REPLACE = 1
 RDF_REMOVE = 2
+
+WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
+WEBAC_NS = Namespace(WEBAC_URL)
 
 
 class Resource(object):
@@ -197,7 +207,7 @@ is stored (as 'response')
         """
         return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
         
-    def add_binary(self, source, slug=None, path=None, force=False, mime=DEFAULT_MIME_TYPE):
+    def add_binary(self, source, slug=None, path=None, force=False, mime=None):
         """Add a new binary object to this resource.
 
         Parameters:

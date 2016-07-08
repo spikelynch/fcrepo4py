@@ -39,12 +39,6 @@ METHODS = {
 #    'COPY': requests.copy
 }
 
-# the following are what the code uses as a serialisation format for
-# RDF between the repository and the Resource objects: the first is
-# the mime type requested of the server, the second is the rdflib parser
-    
-RDF_MIME = 'text/turtle'
-RDF_PARSE = 'turtle'    
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
 
@@ -61,6 +55,10 @@ WEBAC_NS = Namespace(WEBAC_URL)
 
 READ = 'Read'
 WRITE = 'Write'
+
+RDF_MIME = 'text/turtle'
+RDF_PARSE = 'turtle'    
+
 
 DC_FIELDS = [
     'contributor',
@@ -384,6 +382,9 @@ Default method is GET.
 
         The acl will be created with a preset path, and RDF setting the ACL's
         type.
+
+        FIXME - this needs to be moved into the Resource class hierarchy
+        
         """
         rdf = Graph()
         this = URIRef('')
