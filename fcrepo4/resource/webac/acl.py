@@ -1,3 +1,7 @@
+from fcrepo4.resource import Resource
+
+
+
 class Acl(Resource):
     """Class representing a Web AC ACL"""
 
