@@ -12,13 +12,12 @@ from rdflib.namespace import DC
 RDF_MIME = 'text/turtle'
 RDF_PARSE = 'turtle'    
 
-
 RDF_ADD = 0
 RDF_REPLACE = 1
 RDF_REMOVE = 2
 
-WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
-WEBAC_NS = Namespace(WEBAC_URL)
+LDP_CONTAINS = URIRef('http://www.w3.org/ns/ldp#contains')
+
 
 DC_FIELDS = [
     'contributor',
@@ -38,6 +37,17 @@ DC_FIELDS = [
     'type'
     ]
 
+# registry of RDF types and resource subclasses
+
+registry = {}
+
+
+def resource_register(rdf_type, resource_class):
+    registry[rdf_type] = resource_class
+    
+
+
+        
 
 class Resource(object):
     """Object representing a resource.
@@ -81,12 +91,12 @@ is stored (as 'response')
 
         if not self.rdf:
             return self
-        ts = self.rdf_get_all(RDF.type)
         newclass = None
-        if WEBAC_NS['Acl'] in ts:
-            newclass = Acl
-        elif WEBAC_NS['Authorization'] in ts:
-            newclass = Auth
+        ts = self.rdf_get_all(RDF.type)
+        for rdf_type, c in registry.items():
+            if rdf_type in ts:
+                newclass = c
+                break
         if newclass:
             return newclass(self.repo, self.uri, metadata=self.rdf, response=self.response)
         return self
@@ -284,3 +294,4 @@ is stored (as 'response')
             message = "put RDF {} returned HTTP status {} {}".format(self.uri, response.status_code, response.reason)
             raise ResourceError(self.uri, self.repo.user, response, message)
 
+    

@@ -48,14 +48,11 @@ FC4_URL = 'http://fedora.info/definitions/v4/repository#'
 FC4_NS = Namespace(FC4_URL)
 FC4_LAST_MODIFIED = FC4_NS['lastModified']
 
-LDP_CONTAINS = URIRef('http://www.w3.org/ns/ldp#contains')
 
 WEBAC_URL = 'http://www.w3.org/ns/auth/acl#'
 
 WEBAC_NS = Namespace(WEBAC_URL)
 
-READ = 'Read'
-WRITE = 'Write'
 
 RDF_MIME = 'text/turtle'
 RDF_PARSE = 'turtle'    

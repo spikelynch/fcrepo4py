@@ -1,6 +1,7 @@
 
 import unittest
 import fcrepo4, fcrepotest
+from fcrepo4.resource.webac import READ, WRITE
 import logging, requests
 from rdflib import Literal, URIRef
 from rdflib.namespace import DC, Namespace
@@ -50,8 +51,8 @@ class TestDelegated(fcrepotest.FCRepoContainerTest):
         resource = c.add_container(md, slug='my_container')
         uri = resource.uri
 
-        acl.grant(USER_A, fcrepo4.READ, uri)
-        acl.grant(USER_A, fcrepo4.WRITE, uri)
+        acl.grant(USER_A, READ, uri)
+        acl.grant(USER_A, WRITE, uri)
 
         # set user with delegation
 
