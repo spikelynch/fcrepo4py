@@ -1,7 +1,7 @@
 #import requests, os.path, mimetypes, json, yaml, logging, re
 #from urllib.parse import urlparse
 
-import requests
+import requests, logging
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 
@@ -41,15 +41,31 @@ DC_FIELDS = [
 
 registry = {}
 
+logger = logging.getLogger(__name__)
+
 
 def resource_register(rdf_type, resource_class):
     registry[rdf_type] = resource_class
+    logger.info("Registerd class {} as RDF type {}".format(resource_class, rdf_type))
     
 
 
+class ResourceMeta(type):
+    """Metaclass to automagically register Resource subclasses."""
+    def __new__(meta, name, bases, class_dict):
+        """Register a Resource subclass
+
+        If a subclass of Resource has a class variable RDF_TYPE, this
+        intercepts it and registers the RDF type against the class in the
+        registry dict.
+        """
+        cls = type.__new__(meta, name, bases, class_dict)
+        if hasattr(cls, 'RDF_TYPE'):
+            resource_register(cls.RDF_TYPE, cls)
+        return cls
         
 
-class Resource(object):
+class Resource(object, metaclass=ResourceMeta):
     """Object representing a resource.
 
 Attributes

@@ -13,11 +13,13 @@ WRITE = 'Write'
 class Acl(Resource):
     """Class representing a Web AC ACL"""
 
+    RDF_TYPE = WEBAC_NS['Acl']
 
     def __init__(self, repo, uri, metadata=None, response=None):
         """Creator has to set the auths list"""
         super(Acl, self).__init__(repo, uri, metadata=metadata, response=response)
         self.auths = []
+
         
     def auth_path(self, user, access):
         """Standard path for an auth granting user access"""
@@ -116,7 +118,8 @@ class Auth(Resource):
     The Auth class encapsulates the logic for reading and writing the RDF
     triples which WebAC stores.
     """
-    
+
+    RDF_TYPE = WEBAC_NS['Authorization']
     
     def put(self, agent, access, uri):
         """Generates the correct RDF for granting agent access to the
