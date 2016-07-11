@@ -1,9 +1,9 @@
 import unittest
-import fcrepo4, fcrepotest
+import fcrepo4, fcrepotest, fcrepo4.resource
+from fcrepo4.resource.webac import READ, WRITE, WEBAC_NS
 import logging, requests
 from rdflib import Literal, URIRef
 from rdflib.namespace import DC, Namespace
-
 
 # Note- after setting ACLs on a resource, the resource's RDF is getting
 # a acl: fedora:inaccessible resource
@@ -57,9 +57,11 @@ class TestACLs(fcrepotest.FCRepoContainerTest):
 
         self.logger.info("Current repo user = {}".format(self.repo.user))
 
-        acl.grant(USER_A, fcrepo4.READ,  uri)
-        acl.grant(USER_B, fcrepo4.READ,  uri)
-        acl.grant(USER_B, fcrepo4.WRITE, uri)
+        # should we have grant_read and grant_write?
+        
+        acl.grant(USER_A, READ,  uri)
+        acl.grant(USER_B, READ,  uri)
+        acl.grant(USER_B, WRITE, uri)
 
         self.repo.set_user('alice')
         r1 = self.repo.get(uri)
@@ -77,7 +79,7 @@ class TestACLs(fcrepotest.FCRepoContainerTest):
         acluri = acl.uri
         acl2 = self.repo.get(acluri)
         self.logger.info("acl2 = {}".format(type(acl2)))
-        self.assertTrue(type(acl2) == fcrepo4.Acl)
+        self.assertTrue(type(acl2) == fcrepo4.resource.webac.Acl)
 
         acls = acl2.acls()
         self.logger.info(acls)
