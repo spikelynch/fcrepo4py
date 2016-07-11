@@ -108,7 +108,6 @@ class Acl(Resource):
         pass
 
 
-resource_register(WEBAC_NS['Acl'], Acl)
 
 
 
@@ -149,4 +148,3 @@ class Auth(Resource):
         return ( self.agent, self.access, self.accessto )
 
 
-resource_register(WEBAC_NS['Authorization'], Auth)
