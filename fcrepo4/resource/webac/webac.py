@@ -1,5 +1,7 @@
 from fcrepo4.resource import Resource
 
+READ = 'Read'
+WRITE = 'Write'
 
 
 class Acl(Resource):
