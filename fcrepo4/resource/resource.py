@@ -111,7 +111,8 @@ now create a Resource without its own URI, and then add it to a container
     resource = Resource(repo, metadata=graph)
     resource.create(container=container)
 
-And the add method will set the repo anduri for you
+The uri will be container.uri/whatever-fedora-gives and will be set on the
+resource. See the create() method's docs for details.
 
 """
         self.repo = repo
@@ -131,23 +132,6 @@ And the add method will set the repo anduri for you
 
         
         
-    def check_type(self):
-        """See if this resource's RDF indicates that it should be one of the
-        specialised subclasses like Acl
-
-        FIXME"""
-
-        if not self.rdf:
-            return self
-        newclass = None
-        ts = self.rdf_get_all(RDF.type)
-        for rdf_type, c in registry.items():
-            if rdf_type in ts:
-                newclass = c
-                break
-        if newclass:
-            return newclass(self.repo, self.uri, metadata=self.rdf, response=self.response)
-        return self
 
     def dc(self):
         """Extracts all DC values and returns a dict"""
@@ -180,7 +164,7 @@ And the add method will set the repo anduri for you
         self.rdf.parse(data=rdf, format=RDF_PARSE)
 
 
-    def create(self, container, metadata=None, path=None, slug=None, force=None):
+    def create(self, container, metadata=None, slug=None, path=None, force=None):
         """Core method for creating Fedora resources.
 
 Parameters
@@ -211,7 +195,16 @@ code for building resources belonged in the Resource class.
             if slug:
                 headers['Slug'] = slug
         rdf_text = self.rdf.serialize(format=RDF_MIME)
-        response = self.repo.api(uri, method=method, headers=headers, data=rdf_text)
+
+        return self._create_api(uri, method, headers, rdf_text)
+
+
+
+    def _create_api(self, uri, method, headers, data):
+        """Internal method that does the api call, shared between Resource
+        and Binary (and anyone else)"""
+        
+        response = self.repo.api(uri, method=method, headers=headers, data=data)
         if response.status_code == requests.codes.no_content or response.status_code == requests.codes.created:
             self.uri = response.text
             return self

@@ -23,7 +23,7 @@ from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 import types
 
-from fcrepo4.resource import Resource, typedResource
+from fcrepo4.resource import Resource, Binary, typedResource
 from fcrepo4.resource.webac import Acl
 
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
@@ -41,7 +41,6 @@ METHODS = {
 }
 
 
-DEFAULT_MIME_TYPE = 'application/octet-stream'
 
 FC4_URL = 'http://fedora.info/definitions/v4/repository#'
 
@@ -364,24 +363,8 @@ Default method is GET.
         """
         resourceClass = typedResource(metadata)
         resource = resourceClass(self)
-
         return resource.create(uri, metadata, slug=slug, path=path, force=force)
         
-        # rdf = metadata.serialize(format=RDF_MIME)
-        # headers = { 'Content-Type': RDF_MIME }
-        # if path:
-        #     method = 'PUT'
-        #     uri = self.pathconcat(uri, path)
-        #     self._ensure_path(uri, force)
-        # else:
-        #     method = 'POST'
-        #     if slug:
-        #         headers['Slug'] = slug
-        # resource = self._add_resource(uri, method, headers, rdf)
-        # resource.rdf = metadata
-        # return resource
-
-    
 
     def add_acl(self, uri, path="acl", force=False):
         """Add a new container and make it an ACL
@@ -398,21 +381,13 @@ Default method is GET.
         
         """
         rdf = Graph()
-        this = URIRef('')
-        rdf.add( ( this, RDF.type, WEBAC_NS['Acl']) )
-        rdf_text = rdf.serialize(format=RDF_MIME)
-        headers = { 'Content-Type': RDF_MIME }
-        method = 'PUT'
-        uri = self.pathconcat(uri, path)
-        self._ensure_path(uri, force)
-        if self._add_resource(uri, method, headers, rdf_text):
-            acl = Acl(self, uri)
-            acl.rdf = rdf
-            return acl
-        return None
+        rdf.add( ( URIRef(''), RDF.type, WEBAC_NS['Acl']) )  # FIXME should be
+                                                             # automatic
+        acl = Acl(self)
+        return acl.create(uri, rdf, path=path, force=force)
 
     
-    def add_binary(self, uri, source, slug=None, path=None, force=None, mime=DEFAULT_MIME_TYPE):
+    def add_binary(self, uri, source, slug=None, path=None, force=None, mime=None):
         """Upload binary data to a container.
 
         Parameters
@@ -434,73 +409,29 @@ Default method is GET.
         object, you should specify the MIME type: it will default to
         'application/octet-stream' otherwise. 
         """
-        headers = {  }
-        if path:
-            method = 'PUT'
-            uri = self.pathconcat(uri, path)
-            self._ensure_path(uri, force)
-            self.logger.debug("PUTting binary to {}".format(uri))
-        else:
-            method = 'POST'
-            if slug:
-                headers['Slug'] = slug
-            self.logger.debug("POSTing binary to {} {}".format(uri, slug))
 
-            
-        if type(source) == str:
-            if self._is_url(source):
-                # open the source URL as a stream, then use the requests method
-                # iter_content to get a generator which we pass to _add_resource
-                # see http://docs.python-requests.org/en/master/user/advanced/
-                source_r = requests.get(source, stream=True)
-                headers['Content-type'] = source_r.headers['Content-type']
-                basename = source.split('/')[-1]
-                if method == 'POST' and slug:
-                    basename = slug
-                headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
-                return self._add_resource(uri, method, headers, source_r.iter_content(URL_CHUNK))
-                
-            else:
-                basename = os.path.basename(source)
-                headers['Content-type'], _ = mimetypes.guess_type(source)
-                headers['Content-Disposition'] = 'attachment; filename="{}"'.format(basename)
-                with open(source, 'rb') as fh:
-                    resource = self._add_resource(uri, method, headers, fh)
-                return resource
-        else: # let's assume it's a file-like thing
-            self.logger.info("Got a file-like thing")
-            headers['Content-type'] = mime
-            if slug:
-                headers['Content-Disposition'] = 'attachment; filename="{}"'.format(slug)
-            resource = self._add_resource(uri, method, headers, source)
-            return resource
+        binary = Binary(self)
+        return binary.create(uri, source, slug=slug, path=path, force=force, mime=mime)
 
         
-    def _is_url(self, source):
-        """Tries to parse a data source string as a URL. If the result is
-        a http or https URL, returns True.
-        """
-        p = urlparse(source)
-        return p.scheme == 'http' or p.scheme == 'https'
-
         
-    def _add_resource(self, uri, method, headers, data):
-        """Internal method for PUT/POST: this does the error handling and
-        builds the returned Resource object
-        """
-        self.logger.error("DEATH TO _add_resource")
-        sys.exit(-1)
-        self._rdf_dump(data, uri)
-        response = self.api(uri, method=method, headers=headers, data=data)
-        if response.status_code == requests.codes.created:
-            uri = response.text
-            # FIXME: call a factory method on fcrepo4.resource which returns
-            # an object of the correct kind
-            return Resource(repo=self, uri=uri)
-        else:
-            message = "{} {} failed: {} {}".format(method, uri, response.status_code, response.reason)
-            self.logger.error(message)            
-            raise ResourceError(uri, self.user, response, message) 
+    # def _add_resource(self, uri, method, headers, data):
+    #     """Internal method for PUT/POST: this does the error handling and
+    #     builds the returned Resource object
+    #     """
+    #     self.logger.error("DEATH TO _add_resource")
+    #     sys.exit(-1)
+    #     self._rdf_dump(data, uri)
+    #     response = self.api(uri, method=method, headers=headers, data=data)
+    #     if response.status_code == requests.codes.created:
+    #         uri = response.text
+    #         # FIXME: call a factory method on fcrepo4.resource which returns
+    #         # an object of the correct kind
+    #         return Resource(repo=self, uri=uri)
+    #     else:
+    #         message = "{} {} failed: {} {}".format(method, uri, response.status_code, response.reason)
+    #         self.logger.error(message)            
+    #         raise ResourceError(uri, self.user, response, message) 
 
 
     def _rdf_dump(self, data, uri):
