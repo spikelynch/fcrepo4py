@@ -46,9 +46,10 @@ logger = logging.getLogger(__name__)
 
 def resource_register(rdf_type, resource_class):
     registry[rdf_type] = resource_class
-    logger.info("Registerd class {} as RDF type {}".format(resource_class, rdf_type))
+    logger.info("Registered class {} as RDF type {}".format(resource_class, rdf_type))
     
 
+    
 
 class ResourceMeta(type):
     """Metaclass to automagically register Resource subclasses."""
@@ -63,7 +64,22 @@ class ResourceMeta(type):
         if hasattr(cls, 'RDF_TYPE'):
             resource_register(cls.RDF_TYPE, cls)
         return cls
-        
+
+
+def typedResource(repo, metadata):
+    """Take an RDF graph and return the right Resource class"""
+    newclass = None
+    ts = self.rdf_get_all(RDF.type)
+    for rdf_type, c in registry.items():
+        if rdf_type in ts:
+            newclass = c
+            break
+    if newclass:
+        return newclass
+    else:
+        return Resource
+
+            
 
 class Resource(object, metaclass=ResourceMeta):
     """Object representing a resource.
@@ -111,6 +127,8 @@ And the add method will set the repo anduri for you
             self.response = None
         self.changes = []
 
+        
+        
     def check_type(self):
         """See if this resource's RDF indicates that it should be one of the
         specialised subclasses like Acl
@@ -375,3 +393,4 @@ code for building resources belonged in the Resource class.
         return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force, mime=mime)
 
     
+

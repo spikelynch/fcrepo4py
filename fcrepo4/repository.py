@@ -17,7 +17,7 @@ for c in r.children:
 
 """
 
-import requests, os.path, mimetypes, json, yaml, logging, re
+import requests, os.path, mimetypes, json, yaml, logging, re, sys
 from urllib.parse import urlparse
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
@@ -325,11 +325,13 @@ Default method is GET.
         else:
             response = self.api(uri)
         if response.status_code == requests.codes.ok:
-            resource = Resource(self, uri, response=response)
             if response.headers['Content-type'] == 'text/turtle':
-                resource._parse_rdf(response.text)
-            resource = resource.check_type()
-            return resource
+                # if it has RDF, try to get the right class
+                rdf = resource._parse_rdf(response.text)
+                resourceclass = typedResource(rdf)
+                return resourceClass(self, uri, metadata=rdf, response=response)
+            else:
+                return Resource(self, uri, response=response)
         elif response.status_code == requests.codes.not_found:
             return None
         else:
@@ -478,6 +480,8 @@ Default method is GET.
         """Internal method for PUT/POST: this does the error handling and
         builds the returned Resource object
         """
+        self.logger.error("DEATH TO _add_resource")
+        sys.exit(-1)
         self._rdf_dump(data, uri)
         response = self.api(uri, method=method, headers=headers, data=data)
         if response.status_code == requests.codes.created:
