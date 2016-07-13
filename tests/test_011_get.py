@@ -1,5 +1,6 @@
 import unittest
-import fcrepo4, fcrepotest
+import fcrepotest
+from fcrepo4 import Resource, URIError
 import logging
 
 MDATA1 = {
@@ -33,10 +34,16 @@ class TestGet(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(root)
         self.assertIsNotNone(root.rdf)
 
-        c1 = self.container.add_container(self.repo.dc_rdf(MDATA2), slug=SLUG)
-        c1path = self.repo.path2uri(PATH + '/' + SLUG)
+        c1 = Resource(self.repo, metadata=self.repo.dc_rdf(MDATA2))
+        self.assertIsNotNone(c1)
+        c1.create(self.container, slug=SLUG)
+        expecteduri = self.repo.path2uri(PATH + '/' + SLUG)
 
-        c2 = self.repo.get(c1path)
+        self.assertEqual(c1.uri, expecteduri)
+        
+        self.repo.logger.warning("Looking for uri {}".format(expecteduri))
+        
+        c2 = self.repo.get(expecteduri)
         self.assertIsNotNone(c2)
 
         md2 = c2.dc()
@@ -54,7 +61,7 @@ class TestGet(fcrepotest.FCRepoContainerTest):
     def test_repo_mismatch(self):
         """Get a malformed path"""
         badurl = self.repo.uri + 'thisismalformed/'
-        self.assertRaises(fcrepo4.URIError, self.repo.get, badurl)
+        self.assertRaises(URIError, self.repo.get, badurl)
 
         
             

@@ -76,15 +76,25 @@ Attributes
 
 The methods on Resource objects mostly pass through to the corresponding
 methods on its Repository object.
+
+    TODO: the logic for adding things to the repository should be in this
+    module. Binaries should be a subclass of resources, and should have
+    the fancy upload / download from URI in them
+
     """
 
-    def __init__(self, repo, uri, metadata=None, response=None):
+    def __init__(self, repo, uri=None, metadata=None, response=None):
         """
-Create a new Resource. Shouldn't be used by calling code - use the get and
-children methods for that.
+Create a new object representing a Resource (or a specialised subclass).
 
-If the Resource was created by an http request, the requests.Response object
-is stored (as 'response')
+The only thing a Resource must have is a repository.  For example, you can
+now create a Resource without its own URI, and then add it to a container
+
+    resource = Resource(repo, metadata=graph)
+    resource.create(container=container)
+
+And the add method will set the repo anduri for you
+
 """
         self.repo = repo
         self.uri = uri
@@ -103,7 +113,9 @@ is stored (as 'response')
 
     def check_type(self):
         """See if this resource's RDF indicates that it should be one of the
-        specialised subclasses like Acl"""
+        specialised subclasses like Acl
+
+        FIXME"""
 
         if not self.rdf:
             return self
@@ -116,6 +128,15 @@ is stored (as 'response')
         if newclass:
             return newclass(self.repo, self.uri, metadata=self.rdf, response=self.response)
         return self
+
+    def dc(self):
+        """Extracts all DC values and returns a dict"""
+        dc = {}
+        for field in DC_FIELDS:
+            value = self.rdf_get(DC[field])
+            if value:
+                dc[field] = str(value)
+        return dc
 
         
     def data(self):
@@ -138,9 +159,56 @@ is stored (as 'response')
         self.rdf = Graph()
         self.rdf.parse(data=rdf, format=RDF_PARSE)
 
+
+    def create(self, container, metadata=None, path=None, slug=None, force=None):
+        """Core method for creating Fedora resources.
+
+Parameters
+
+    container: Resource or uri of the container in which to create it
+    metadata: rdf graph
+    path: path relative to container
+    slug: preferred path
+    force: whether to delete container/path if it already exits
+   
+This was taken over from repository.add_container because I decided that the
+code for building resources belonged in the Resource class.
+    
+        """
+        if metadata:
+            self.rdf = metadata
+        if type(container) == str:
+            uri = container
+        else:
+            uri = container.uri
+        headers = { 'Content-Type': RDF_MIME }
+        if path:
+            method = 'PUT'
+            uri = self.repo.pathconcat(uri, path)
+            self.repo._ensure_path(uri, force)
+        else:
+            method = 'POST'
+            if slug:
+                headers['Slug'] = slug
+        rdf_text = self.rdf.serialize(format=RDF_MIME)
+        response = self.repo.api(uri, method=method, headers=headers, data=rdf_text)
+        if response.status_code == requests.codes.no_content or response.status_code == requests.codes.created:
+            self.uri = response.text
+            return self
+        else:
+            message = "Create {} {} {} {} returned HTTP status {} {}".format(self.uri, method, path, response.status_code, response.reason)
+            raise ResourceError(self.uri, self.repo.user, response, message)
+
+
+        
+        
+
     def put(self):
         """Put the Resource to the repository, using force. Used when
-        writing Auths and other specialised resources."""
+        writing Auths and other specialised resources.
+
+        FIXME replace this with a call to the newer write"""
+        
 
         self.repo._ensure_path(self.uri, True)
         rdf_text = self.rdf.serialize(format=RDF_MIME)
@@ -223,47 +291,6 @@ is stored (as 'response')
         self.changes.append((RDF_REMOVE, p, None))
 
 
-    def dc(self):
-        """Extracts all DC values and returns a dict"""
-        dc = {}
-        for field in DC_FIELDS:
-            value = self.rdf_get(DC[field])
-            if value:
-                dc[field] = str(value)
-        return dc
-
-        
-    def add_container(self, metadata, slug=None, path=None, force=False):
-        """Add a new container to this resource.
-
-        Parameters:
-        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
-        path (str) -- path to new container, relative to uri
-        slug (str) -- slug of new container
-        force (boolean) -- where path is used, whether to force an overwrite
-
-        Using the path parameter will try to create a deterministic path. If
-        the path already exists and force is False (the default), an error is
-        raised. If the path already exists and force is True, the existing
-        path is deleted and obliterated and a new, empty container is created.
-
-        """
-        return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
-        
-    def add_binary(self, source, slug=None, path=None, force=False, mime=None):
-        """Add a new binary object to this resource.
-
-        Parameters:
-        source (str or file-like) -- an IO-style object, URI or filename
-        path (str) -- path to new container, relative to uri
-        slug (str) -- slug of new container
-        force (boolean) -- where path is used, whether to force an overwrite
-
-        The path, slug and force parameters have the same meaning as for
-        add_container
-        
-        """
-        return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force, mime=mime)
 
     def rdf_read(self):
         """Read the metadata from Fedora"""
@@ -303,11 +330,48 @@ is stored (as 'response')
         with open('dump-after.turtle', 'wb') as tf:
             tf.write(rdf)
         headers = { 'Content-type': RDF_MIME }
+        # FIXME: replace this with write()
         response = self.repo.api(self.uri, method='PUT', headers=headers, data=rdf)
         if response.status_code == requests.codes.no_content:
             return self
         else:
             message = "put RDF {} returned HTTP status {} {}".format(self.uri, response.status_code, response.reason)
             raise ResourceError(self.uri, self.repo.user, response, message)
+
+
+        
+
+        
+    def add_container(self, metadata, slug=None, path=None, force=False):
+        """Add a new container to this resource.
+
+        Parameters:
+        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
+        path (str) -- path to new container, relative to uri
+        slug (str) -- slug of new container
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        Using the path parameter will try to create a deterministic path. If
+        the path already exists and force is False (the default), an error is
+        raised. If the path already exists and force is True, the existing
+        path is deleted and obliterated and a new, empty container is created.
+
+        """
+        return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
+        
+    def add_binary(self, source, slug=None, path=None, force=False, mime=None):
+        """Add a new binary object to this resource.
+
+        Parameters:
+        source (str or file-like) -- an IO-style object, URI or filename
+        path (str) -- path to new container, relative to uri
+        slug (str) -- slug of new container
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        The path, slug and force parameters have the same meaning as for
+        add_container
+        
+        """
+        return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force, mime=mime)
 
     

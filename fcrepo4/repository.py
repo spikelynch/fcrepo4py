@@ -338,6 +338,8 @@ Default method is GET.
 
 
 
+
+
     def add_container(self, uri, metadata, slug=None, path=None, force=False):
         """Add a new container inside an existing one.
 
@@ -369,6 +371,7 @@ Default method is GET.
         resource.rdf = metadata
         return resource
 
+    
 
     def add_acl(self, uri, path="acl", force=False):
         """Add a new container and make it an ACL
@@ -462,6 +465,7 @@ Default method is GET.
             resource = self._add_resource(uri, method, headers, source)
             return resource
 
+        
     def _is_url(self, source):
         """Tries to parse a data source string as a URL. If the result is
         a http or https URL, returns True.
@@ -478,7 +482,9 @@ Default method is GET.
         response = self.api(uri, method=method, headers=headers, data=data)
         if response.status_code == requests.codes.created:
             uri = response.text
-            return Resource(self, uri)
+            # FIXME: call a factory method on fcrepo4.resource which returns
+            # an object of the correct kind
+            return Resource(repo=self, uri=uri)
         else:
             message = "{} {} failed: {} {}".format(method, uri, response.status_code, response.reason)
             self.logger.error(message)            
