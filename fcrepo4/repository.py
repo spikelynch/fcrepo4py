@@ -23,7 +23,7 @@ from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 import types
 
-from fcrepo4.resource import Resource
+from fcrepo4.resource import Resource, typedResource
 from fcrepo4.resource.webac import Acl
 
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
@@ -327,10 +327,13 @@ Default method is GET.
         if response.status_code == requests.codes.ok:
             if response.headers['Content-type'] == 'text/turtle':
                 # if it has RDF, try to get the right class
-                rdf = resource._parse_rdf(response.text)
+                rdf = Graph()
+                rdf.parse(data=response.text, format=RDF_PARSE)
                 resourceclass = typedResource(rdf)
-                return resourceClass(self, uri, metadata=rdf, response=response)
+                return resourceclass(self, uri, metadata=rdf, response=response)
             else:
+                # if it's not RDF then this should probably be a binary
+                # but check
                 return Resource(self, uri, response=response)
         elif response.status_code == requests.codes.not_found:
             return None
@@ -359,19 +362,24 @@ Default method is GET.
         created.
 
         """
-        rdf = metadata.serialize(format=RDF_MIME)
-        headers = { 'Content-Type': RDF_MIME }
-        if path:
-            method = 'PUT'
-            uri = self.pathconcat(uri, path)
-            self._ensure_path(uri, force)
-        else:
-            method = 'POST'
-            if slug:
-                headers['Slug'] = slug
-        resource = self._add_resource(uri, method, headers, rdf)
-        resource.rdf = metadata
-        return resource
+        resourceClass = typedResource(metadata)
+        resource = resourceClass(self)
+
+        return resource.create(uri, metadata, slug=slug, path=path, force=force)
+        
+        # rdf = metadata.serialize(format=RDF_MIME)
+        # headers = { 'Content-Type': RDF_MIME }
+        # if path:
+        #     method = 'PUT'
+        #     uri = self.pathconcat(uri, path)
+        #     self._ensure_path(uri, force)
+        # else:
+        #     method = 'POST'
+        #     if slug:
+        #         headers['Slug'] = slug
+        # resource = self._add_resource(uri, method, headers, rdf)
+        # resource.rdf = metadata
+        # return resource
 
     
 

@@ -1,1 +1,1 @@
-from .resource import Resource, resource_register
+from .resource import Resource, resource_register, typedResource

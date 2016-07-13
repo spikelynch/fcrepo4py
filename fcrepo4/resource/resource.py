@@ -66,14 +66,16 @@ class ResourceMeta(type):
         return cls
 
 
-def typedResource(repo, metadata):
-    """Take an RDF graph and return the right Resource class"""
+def typedResource(rdf):
+    """Take an RDF graph and return the right Resource class
+
+    This is probably still broken: I've assumed that all RDF.type triples
+    have the Fedora node as their subject
+    """
     newclass = None
-    ts = self.rdf_get_all(RDF.type)
-    for rdf_type, c in registry.items():
-        if rdf_type in ts:
-            newclass = c
-            break
+    for s, o in rdf.subject_objects(predicate=RDF.type):
+        if o in registry:
+            newclass = registry[o]
     if newclass:
         return newclass
     else:
