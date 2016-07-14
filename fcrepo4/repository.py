@@ -26,6 +26,8 @@ import types
 from fcrepo4.resource import Resource, Binary, typedResource
 from fcrepo4.resource.webac import Acl
 
+from fcrepo4.exception import Error, ResourceError, ConflictError, URIError
+
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
 
 METHODS = {
@@ -86,56 +88,6 @@ LOGLEVELS = {
 
 
 FCR_ACCESS = 'fcr:accessroles'
-
-class Error(Exception):
-    """Base class for exceptions.
-
-    Attributes:
-        message (str): the error message"""
-
-    def __init__(self, message):
-        self.message = message
-
-        
-class URIError(Error):
-    """Error for malformed URIs.
-
-    Attributes:
-        message (str)
-    """
-    pass
-
-class ConflictError(Error):
-    """Error for conflicts: like trying to create a path which exists"""
-    pass
-
-class ResourceError(Error):
-    """Base class for API/Resource errors.
-
-    Attributes:
-        uri (str) -- the uri of the resource
-        user (str) -- the user who attempted the request
-        response (requests.Response) -- the HTTP response
-        status_code (int) -- the HTTP status returned by the request
-        reason (str) -- the text version of the HTTP status code
-        message (str) -- an error messsage
-"""
-
-    def __init__(self, uri, user, response, message):
-        """Parameters:
-
-        uri (str): the uri of the resource
-        user (str): the user who made the request
-        response (requests.Response): the HTTP response
-        message (str): additional message from the code throwing the exception
-        """
-        self.uri = uri
-        self.user = user
-        self.response = response
-        self.status_code = response.status_code
-        self.reason = response.reason
-        self.message = message
-
 
 
 class Repository(object):

@@ -15,9 +15,9 @@ class Acl(Resource):
 
     RDF_TYPE = WEBAC_NS['Acl']
 
-    def __init__(self, repo, uri, metadata=None, response=None):
-        """Creator has to set the auths list"""
-        super(Acl, self).__init__(repo, uri, metadata=metadata, response=response)
+    def __init__(self, repo, uri=None, metadata=None, response=None):
+        """All this does is initialise an empty list for auths"""
+        super(Acl, self).__init__(repo, uri=uri, metadata=metadata, response=response)
         self.auths = []
 
         

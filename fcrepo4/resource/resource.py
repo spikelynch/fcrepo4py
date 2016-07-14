@@ -4,6 +4,8 @@ import requests, logging
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
 from rdflib.namespace import DC
 
+from fcrepo4.exception import ResourceError
+
 # the following are what the code uses as a serialisation format for
 # RDF between the repository and the Resource objects: the first is
 # the mime type requested of the server, the second is the rdflib parser
@@ -208,7 +210,7 @@ code for building resources belonged in the Resource class.
             self.uri = response.text
             return self
         else:
-            message = "Create {} {} {} {} returned HTTP status {} {}".format(self.uri, method, path, response.status_code, response.reason)
+            message = "Create {} {} returned HTTP status {} {}".format(self.uri, method, response.status_code, response.reason)
             raise ResourceError(self.uri, self.repo.user, response, message)
 
 
