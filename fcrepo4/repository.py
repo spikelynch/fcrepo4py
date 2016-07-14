@@ -83,7 +83,6 @@ LOGLEVELS = {
     'critical': logging.CRITICAL
     }
 
-URL_CHUNK = 512
 
 
 FCR_ACCESS = 'fcr:accessroles'

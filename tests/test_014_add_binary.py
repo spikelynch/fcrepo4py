@@ -37,7 +37,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         super(TestPutBinary, self).tearDown(PATH)
             
     def test_put_binary(self):
-        """Upload a binary with a PUT request"""
+        """Upload a binary from a file using PUT"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         b = c.add_binary(FILE, path=FILE)
@@ -48,12 +48,24 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(b2)
 
     def test_post_binary(self):
-        """Upload a binary with a POST request"""
+        """Upload a binary from a file using POST"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         BASENAME = FILE.split('/')[-1]
-        b = c.add_binary(FILE, slug=BASENAME)
+        b = c.add_binary(FILE)
         self.assertIsNotNone(b)
+        uri = b.uri
+        b2 = self.repo.get(uri)
+        self.assertIsNotNone(b2)
+
+    def test_post_binary_slug(self):
+        """Upload a binary from a file using POST with a slug"""
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        SLUG = 'my_new_file.jpg'
+        b = c.add_binary(FILE, slug=SLUG)
+        self.assertIsNotNone(b)
+        self.assertEqual(b.uri, cpath + '/' + SLUG)
         uri = b.uri
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
@@ -78,8 +90,8 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(b2)
         
 
-    def test_binary_from_url(self):
-        """Add a binary from a URL."""
+    def test_put_binary_from_url(self):
+        """Add a binary from a URL using PUT"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)
         BASENAME = 'pic_from_url.jpg'
@@ -90,8 +102,32 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
 
+    def test_post_binary_from_url(self):
+        """Add a binary from a URL using POST"""
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        b = c.add_binary(URL_BINARY)
+        self.assertIsNotNone(b)
+        uri = b.uri
+        b2 = self.repo.get(uri)
+        self.assertIsNotNone(b2)
 
-    def test_binary_from_filehandle(self):
+
+    def test_put_binary_from_filehandle(self):
+        """Tests adding a container from a filehandle using PUT"""
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        BPATH = 'my_binary_thing'
+        b = None
+        with open(FILE, 'rb') as fh:
+            b = c.add_binary(fh, path=BPATH, mime=MIME_TYPE)
+        self.assertIsNotNone(b)
+        uri = b.uri
+        b2 = self.repo.get(uri)
+        self.assertIsNotNone(b2)
+
+        
+    def test_post_binary_from_filehandle(self):
         """Tests adding a container from a filehandle with a POST"""
         cpath = self.repo.path2uri(PATH)
         c = self.repo.get(cpath)

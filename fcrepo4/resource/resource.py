@@ -1,5 +1,4 @@
-#import requests, os.path, mimetypes, json, yaml, logging, re
-#from urllib.parse import urlparse
+#import requests, mimetypes, json, yaml, logging, re
 
 import requests, logging
 from rdflib import Graph, Literal, URIRef, Namespace, RDF
