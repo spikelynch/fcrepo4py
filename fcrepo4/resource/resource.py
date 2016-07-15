@@ -40,13 +40,13 @@ DC_FIELDS = [
 
 # registry of RDF types and resource subclasses
 
-registry = {}
+rdf2class = {}
 
 logger = logging.getLogger(__name__)
 
 
 def resource_register(rdf_type, resource_class):
-    registry[rdf_type] = resource_class
+    rdf2class[rdf_type] = resource_class
     logger.info("Registered class {} as RDF type {}".format(resource_class, rdf_type))
     
 
@@ -75,8 +75,8 @@ def typedResource(rdf):
     """
     newclass = None
     for s, o in rdf.subject_objects(predicate=RDF.type):
-        if o in registry:
-            newclass = registry[o]
+        if o in rdf2class:
+            newclass = rdf2class[o]
     if newclass:
         return newclass
     else:
@@ -93,15 +93,11 @@ Attributes
     rdf (Graph): its RDF graph
     response (Response): the requests.Response object, if available
 
-The methods on Resource objects mostly pass through to the corresponding
-methods on its Repository object.
-
-    TODO: the logic for adding things to the repository should be in this
-    module. Binaries should be a subclass of resources, and should have
-    the fancy upload / download from URI in them
-
     """
 
+    RDF_TYPE = None
+    
+    
     def __init__(self, repo, uri=None, metadata=None, response=None):
         """
 Create a new object representing a Resource (or a specialised subclass).
@@ -182,6 +178,7 @@ code for building resources belonged in the Resource class.
         """
         if metadata:
             self.rdf = metadata
+        self._ensure_rdf_type()
         if type(container) == str:
             uri = container
         else:
@@ -214,8 +211,71 @@ code for building resources belonged in the Resource class.
             raise ResourceError(self.uri, self.repo.user, response, message)
 
 
+    def _ensure_rdf_type(self):
+        """Make sure that this Resource has an RDF.type triple specified
+        by its class"""
+
+        if not self.RDF_TYPE:
+            return
+        if self.uri:
+            s = URIRef(self.uri)
+        else:
+            s = URIRef('')
+        type_triple = ( s, RDF.type, self.RDF_TYPE )
+        self.repo.logger.warning(type_triple)
+        ts = self.rdf.triples(type_triple)
+        self.repo.logger.warning(ts)
+        if not next(ts, None):
+            self.rdf.add(type_triple)
+        else:
+            self.repo.logger.warning("Didn't add type")
+
+
+    def add(self, resource, slug=None, path=None, force=False):
+        """Add a new Resource object as a child of this Resource"""
+        return resource.create(self.uri, slug=slug, path=path, force=force) 
+            
+
+    def add_container(self, metadata, slug=None, path=None, force=False):
+        """Add a new container to this resource.
+
+        Parameters:
+        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
+        path (str) -- path to new container, relative to uri
+        slug (str) -- slug of new container
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        Using the path parameter will try to create a deterministic path. If
+        the path already exists and force is False (the default), an error is
+        raised. If the path already exists and force is True, the existing
+        path is deleted and obliterated and a new, empty container is created.
+
+        """
+        resourceClass = typedResource(metadata)
+        resource = resourceClass(self.repo)
+        return resource.create(self.uri, metadata=metadata, slug=slug, path=path, force=force)
+
+
         
+    def add_binary(self, source, slug=None, path=None, force=False, mime=None):
+        """Add a new binary object to this resource.
+
+        Parameters:
+        source (str or file-like) -- an IO-style object, URI or filename
+        path (str) -- path to new container, relative to uri
+        slug (str) -- slug of new container
+        force (boolean) -- where path is used, whether to force an overwrite
+
+        The path, slug and force parameters have the same meaning as for
+        add_container
         
+        """
+        binary = Binary(self)
+        return binary.create(uri, source, slug=slug, path=path, force=force, mime=mime)
+
+    
+
+
 
     def put(self):
         """Put the Resource to the repository, using force. Used when
@@ -241,6 +301,10 @@ code for building resources belonged in the Resource class.
     def children(self):
         """Returns a list of paths of this resource's FEDORA children"""
         return self.rdf.objects(subject=URIRef(self.uri), predicate=LDP_CONTAINS)
+
+    def rdf_types(self):
+        """Returns a list of all this object's RDF.type values"""
+        return self.rdf_get_all(RDF.type)
 
     def rdf_search(self, predfilter):
         """Returns a list of all the objects where predfilter(p) is true"""
@@ -354,39 +418,3 @@ code for building resources belonged in the Resource class.
 
 
         
-
-        
-    def add_container(self, metadata, slug=None, path=None, force=False):
-        """Add a new container to this resource.
-
-        Parameters:
-        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
-        path (str) -- path to new container, relative to uri
-        slug (str) -- slug of new container
-        force (boolean) -- where path is used, whether to force an overwrite
-
-        Using the path parameter will try to create a deterministic path. If
-        the path already exists and force is False (the default), an error is
-        raised. If the path already exists and force is True, the existing
-        path is deleted and obliterated and a new, empty container is created.
-
-        """
-        return self.repo.add_container(self.uri, metadata, slug=slug, path=path, force=force)
-        
-    def add_binary(self, source, slug=None, path=None, force=False, mime=None):
-        """Add a new binary object to this resource.
-
-        Parameters:
-        source (str or file-like) -- an IO-style object, URI or filename
-        path (str) -- path to new container, relative to uri
-        slug (str) -- slug of new container
-        force (boolean) -- where path is used, whether to force an overwrite
-
-        The path, slug and force parameters have the same meaning as for
-        add_container
-        
-        """
-        return self.repo.add_binary(self.uri, source, slug=slug, path=path, force=force, mime=mime)
-
-    
-

@@ -96,7 +96,7 @@ class Repository(object):
     """
     
     def __init__(self, config='config.yml', user='user', loglevel=logging.WARNING):
-        """"""
+        """Creator"""
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(loglevel)
         configd = {}
@@ -314,7 +314,7 @@ Default method is GET.
         """
         resourceClass = typedResource(metadata)
         resource = resourceClass(self)
-        return resource.create(uri, metadata, slug=slug, path=path, force=force)
+        return resource.create(uri, metadata=metadata, slug=slug, path=path, force=force)
         
 
     def add_acl(self, uri, path="acl", force=False):
@@ -331,11 +331,8 @@ Default method is GET.
         FIXME - this needs to be moved into the Resource class hierarchy
         
         """
-        rdf = Graph()
-        rdf.add( ( URIRef(''), RDF.type, WEBAC_NS['Acl']) )  # FIXME should be
-                                                             # automatic
         acl = Acl(self)
-        return acl.create(uri, rdf, path=path, force=force)
+        return acl.create(uri, path=path, force=force)
 
     
     def add_binary(self, uri, source, slug=None, path=None, force=None, mime=None):
