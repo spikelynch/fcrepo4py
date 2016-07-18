@@ -1,17 +1,21 @@
 import requests, os.path, mimetypes
 from urllib.parse import urlparse
-
+from rdflib import Namespace
 from fcrepo4.resource import Resource, resource_register
 
 DEFAULT_MIME_TYPE = 'application/octet-stream'
 URL_CHUNK_SIZE = 1024
 
+FEDORA_NS = Namespace('http://fedora.info/definitions/v4/repository#')
 
 class Binary(Resource):
     """Class representing a binary, non-RDF resource"""
 
-    RDF_TYPE = None
-
+    # It gets an RDF_TYPE so that it gets registered, although in practice
+    # this is on the fcr:metadaat record
+    
+    RDF_TYPE = FEDORA_NS['Binary']
+                         
     def create(self, container, source=None, metadata=None, slug=None, basename=False, path=None, force=None, mime=DEFAULT_MIME_TYPE):
         """Create a Binary in the repository. Note that metadata here is not
         an rdf Graph but a dict, because in Fedora binary objects don't have

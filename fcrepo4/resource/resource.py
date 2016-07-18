@@ -6,6 +6,7 @@ from rdflib.namespace import DC
 
 from fcrepo4.exception import ResourceError
 
+
 # the following are what the code uses as a serialisation format for
 # RDF between the repository and the Resource objects: the first is
 # the mime type requested of the server, the second is the rdflib parser
@@ -38,7 +39,11 @@ DC_FIELDS = [
     'type'
     ]
 
+FEDORA_NS = Namespace('http://fedora.info/definitions/v4/repository#')
+    
 # registry of RDF types and resource subclasses
+
+
 
 rdf2class = {}
 
@@ -222,9 +227,9 @@ code for building resources belonged in the Resource class.
         else:
             s = URIRef('')
         type_triple = ( s, RDF.type, self.RDF_TYPE )
-        self.repo.logger.warning(type_triple)
+        if not self.rdf:
+            self.rdf = Graph()
         ts = self.rdf.triples(type_triple)
-        self.repo.logger.warning(ts)
         if not next(ts, None):
             self.rdf.add(type_triple)
         else:
@@ -270,8 +275,13 @@ code for building resources belonged in the Resource class.
         add_container
         
         """
-        binary = Binary(self)
-        return binary.create(uri, source, slug=slug, path=path, force=force, mime=mime)
+        # this is a hack to get the binary class from the registry while
+        # avoiding circular imports
+        metadata = Graph()
+        metadata.add((URIRef(''), RDF.type, FEDORA_NS['Binary']))
+        resourceClass = typedResource(metadata)
+        binary = resourceClass(self.repo)
+        return binary.create(self.uri, source=source, slug=slug, path=path, force=force, mime=mime)
 
     
 

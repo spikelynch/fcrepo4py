@@ -3,6 +3,7 @@ import fcrepo4, fcrepotest
 import logging, requests
 import filecmp
 
+from fcrepo4.resource import Binary
 
 MDATA1 = {
     'title': 'Bird',
@@ -47,6 +48,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
 
+
     def test_post_binary(self):
         """Upload a binary from a file using POST"""
         cpath = self.repo.path2uri(PATH)
@@ -57,6 +59,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         uri = b.uri
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
+
 
     def test_post_binary_slug(self):
         """Upload a binary from a file using POST with a slug"""
@@ -70,7 +73,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
 
-                
+
     def test_conflict_binary(self):
         """Upload binary to the same path twice without force"""
         cpath = self.repo.path2uri(PATH)
@@ -79,6 +82,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(b)
         noforce = lambda: c.add_binary(FILE, path=FILE)
         self.assertRaises(fcrepo4.ConflictError, noforce)
+
 
     def test_overwrite_binary(self):
         """Upload binary to the same path twice with force"""
@@ -89,6 +93,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b2 = c.add_binary(FILE, path=FILE, force=True)
         self.assertIsNotNone(b2)
         
+
 
     def test_put_binary_from_url(self):
         """Add a binary from a URL using PUT"""
@@ -102,6 +107,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
 
+
     def test_post_binary_from_url(self):
         """Add a binary from a URL using POST"""
         cpath = self.repo.path2uri(PATH)
@@ -111,6 +117,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         uri = b.uri
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
+
 
 
     def test_put_binary_from_filehandle(self):
@@ -127,6 +134,7 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(b2)
 
         
+
     def test_post_binary_from_filehandle(self):
         """Tests adding a container from a filehandle with a POST"""
         cpath = self.repo.path2uri(PATH)

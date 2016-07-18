@@ -114,7 +114,7 @@ class Repository(object):
         if 'loglevel' in configd:
             if configd['loglevel'] in LOGLEVELS:
                 self.logger.setLevel(LOGLEVELS[configd['loglevel']])
-                self.logger.info("Log level set to '{}' by {}".format(configd['loglevel'], config))
+                self.logger.debug("Log level set to '{}' by {}".format(configd['loglevel'], config))
             else:
                 self.logger.error("Warning: config {} matches no log level".format(configd['loglevel']))
         self.logger.debug("Config = {}".format(configd))
