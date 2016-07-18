@@ -12,7 +12,7 @@ class Binary(Resource):
     """Class representing a binary, non-RDF resource"""
 
     # It gets an RDF_TYPE so that it gets registered, although in practice
-    # this is on the fcr:metadaat record
+    # this is on the fcr:metadata record
     
     RDF_TYPE = FEDORA_NS['Binary']
                          
@@ -111,5 +111,14 @@ class Binary(Resource):
         return self._create_api(self.target_uri, self.method, headers, response.iter_content(URL_CHUNK_SIZE))
 
     
+    def metadata(self):
+        """Fetches and parses the system-provided fcr:metadata resource for
+        this binary, and stores it in the attribute metadata. It also copies
+        the rdf Graph into the resource's rdf attribute so that the normal
+        rdf_ methods work on it." 
 
-
+        Returns the rdf graph."""
+        uri = self.repo.pathconcat(self.uri, '/fcr:metadata')
+        self.metadata = self.repo.get(uri)
+        self.rdf = self.metadata.rdf
+        return self.rdf

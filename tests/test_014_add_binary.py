@@ -1,6 +1,7 @@
 import unittest
 import fcrepo4, fcrepotest
 import logging, requests
+from rdflib import Namespace
 import filecmp
 
 from fcrepo4.resource import Binary
@@ -29,6 +30,8 @@ URL_BASENAME = URL_BINARY.split('/')[-1]
 
 OUTFILE = 'tests/bird2.jpg'
 
+MIME_TYPE_RDF = Namespace('http://www.ebu.ch/metadata/ontologies/ebucore/ebucore#')['hasMimeType']
+
 class TestPutBinary(fcrepotest.FCRepoContainerTest):
 
     def setUp(self):
@@ -45,8 +48,14 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         self.assertIsNotNone(b)
         self.assertEqual(b.uri, cpath + '/' + FILE)
         uri = b.uri
+        mime = b.mime
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
+        self.assertTrue(type(b2) == Binary)
+        rdf = b2.metadata()
+        self.assertIsNotNone(rdf)
+        mime2 = b2.rdf_get(MIME_TYPE_RDF)
+        self.assertEqual(str(mime2), mime)
 
 
     def test_post_binary(self):
@@ -147,6 +156,18 @@ class TestPutBinary(fcrepotest.FCRepoContainerTest):
         uri = b.uri
         b2 = self.repo.get(uri)
         self.assertIsNotNone(b2)
+
+    def test_post_binary(self):
+        """Upload a binary from a file using POST"""
+        cpath = self.repo.path2uri(PATH)
+        c = self.repo.get(cpath)
+        BASENAME = FILE.split('/')[-1]
+        b = c.add_binary(FILE)
+        self.assertIsNotNone(b)
+        uri = b.uri
+        b2 = self.repo.get(uri)
+        self.assertIsNotNone(b2)
+
 
                                 
 if __name__ == '__main__':

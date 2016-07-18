@@ -282,9 +282,8 @@ Default method is GET.
                 resourceclass = typedResource(rdf)
                 return resourceclass(self, uri, metadata=rdf, response=response)
             else:
-                # if it's not RDF then this should probably be a binary
-                # but check
-                return Resource(self, uri, response=response)
+                # if it has no RDF, it's a binary
+                return Binary(self, uri, response=response)
         elif response.status_code == requests.codes.not_found:
             return None
         else:
