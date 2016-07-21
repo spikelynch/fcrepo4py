@@ -118,7 +118,6 @@ resource. See the create() method's docs for details.
 
 """
         self.repo = repo
-        self.repo.logger.warning("In init for Resource {} {}".format(uri, metadata))
         self.uri = uri
         self.rdf = None
         if metadata:

@@ -36,7 +36,6 @@ class PCDMResource(Resource):
         Looks in the keyword args for pcdm relations and adds them to the
         RDF.
         """
-        repo.logger.warning("In init for PCDMResource {} {}".format(uri, metadata))
         super(PCDMResource, self).__init__(repo, metadata=metadata, uri=uri, response=response)
         if response:
             return # if response, it's a repo lookup
