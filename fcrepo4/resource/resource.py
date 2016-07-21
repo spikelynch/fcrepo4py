@@ -118,6 +118,7 @@ resource. See the create() method's docs for details.
 
 """
         self.repo = repo
+        self.repo.logger.warning("In init for Resource {} {}".format(uri, metadata))
         self.uri = uri
         self.rdf = None
         if metadata:
@@ -245,7 +246,7 @@ code for building resources belonged in the Resource class.
         """Add a new container to this resource.
 
         Parameters:
-        metadata ([ (p, o) ]) -- a list of ( predicate, object ) tuples
+        metadata (Graph) -- an rdflib Graph
         path (str) -- path to new container, relative to uri
         slug (str) -- slug of new container
         force (boolean) -- where path is used, whether to force an overwrite

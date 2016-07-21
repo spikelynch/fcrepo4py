@@ -280,6 +280,7 @@ Default method is GET.
                 rdf = Graph()
                 rdf.parse(data=response.text, format=RDF_PARSE)
                 resourceclass = typedResource(rdf)
+                self.logger.warning("About to init {} {}".format(resourceclass, uri))
                 return resourceclass(self, uri, metadata=rdf, response=response)
             else:
                 # if it has no RDF, it's a binary
