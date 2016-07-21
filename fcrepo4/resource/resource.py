@@ -7,7 +7,7 @@ from rdflib.namespace import DC
 from fcrepo4.exception import ResourceError
 
 
-# the following are what the code uses as a serialisation format for
+# The following are what the code uses as a serialisation format for
 # RDF between the repository and the Resource objects: the first is
 # the mime type requested of the server, the second is the rdflib parser
     

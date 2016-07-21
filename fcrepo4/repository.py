@@ -25,8 +25,9 @@ import types
 
 from fcrepo4.resource import Resource, Binary, typedResource
 from fcrepo4.resource.webac import Acl
+from fcrepo4.transaction import Transaction
 
-from fcrepo4.exception import Error, ResourceError, ConflictError, URIError
+from fcrepo4.exception import Error, ResourceError, ConflictError, URIError, TransactionError
 
 logging.basicConfig(format="[%(name)s] %(levelname)s: %(message)s")
 
@@ -134,6 +135,7 @@ class Repository(object):
             self.uri += '/'
         self.pathre = re.compile("^{}rest/(.*)$".format(self.uri))
         self.cf = configd
+        self.trx = None
 
         
     def set_user(self, user):
@@ -198,7 +200,11 @@ Throws an exception if the uri doesn't match this repository
             return m.group(1)
         else:
             raise URIError("Path mismatch - couldn't parse {} to a path in {}".format(uri, self.uri))
-        
+
+
+    def root(self):
+        """Returns the root Resource of the repository"""
+        return self.get(self.path2uri('/'))
         
     def api(self, uri, method='GET', headers=None, data=None, auth=None):
         """
@@ -207,9 +213,14 @@ plain POST) or files (for file uploads)
 
 Default method is GET.
 """
-        self.uri2path(uri)  # safety check: will throw an URI error if it's bad
+        path = self.uri2path(uri) # sanity check
         if method in METHODS:
             m = METHODS[method]
+#            self.logger.debug("API {} {}".format(method, uri))
+            if self.trx:
+                self.logger.debug("Running in transaction {}".format(self.trx.uri))
+                # there's a transaction running, change the uri
+                uri = self.trx.path2uri(path)
             self.logger.debug("API {} {}".format(method, uri))
             self.logger.debug("Authentication: {} {}".format(self.user, self.password))
             if self.delegated and self.user != 'fedoraAdmin':
@@ -440,3 +451,23 @@ Default method is GET.
             raise ResourceError(uri, self.user, response, message)
 
 
+    def transaction(self):
+        """Start a new transaction and return a Transaction object.
+
+        The Transaction object works with with..as syntax, as follows:
+
+        with repo.transaction() as t:
+            repo.add_container()
+            repo.do_more_stuff
+
+        Every api call made in the with block with repo gets the Fedora
+        api for transactions applied to it
+        """
+
+        if self.trx:
+            raise TransactionError('/fcr:tx', self.user, None, "Transaction already in progress")
+        self.trx = Transaction(self)
+        return self.trx
+         
+
+        

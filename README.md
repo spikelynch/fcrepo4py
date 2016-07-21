@@ -22,7 +22,7 @@ To install:
 
     # Connect to a repository
 
-    repo = fcrepo4.Repository(config='config.yml)
+    repo = fcrepo4.Repository(config='config.yml')
 
     # Get the root container
 
