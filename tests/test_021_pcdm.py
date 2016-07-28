@@ -1,6 +1,7 @@
 import unittest
 import fcrepo4, fcrepotest
 import logging, requests
+from rdflib import Graph
 from rdflib.namespace import Namespace
 
 import fcrepo4.resource.pcdm as pcdm
@@ -29,7 +30,6 @@ class TestPcdm(fcrepotest.FCRepoContainerTest):
     def tearDown(self):
         super(TestPcdm, self).tearDown(PATH)
 
-    #@unittest.skip("Not finished yet")
     def test_collection(self):
         """Add a pcdm:Collection"""
 
@@ -79,6 +79,62 @@ class TestPcdm(fcrepotest.FCRepoContainerTest):
         self.assertTrue(PCDM['Object'] in c2.rdf_types())
  
                 
+    def test_membership(self):
+        """Add a pcdm:Collection and some pcdm:Objects as members"""
+
+        MDATA2 = {
+            'title': 'A PCDM Collection',
+            'description': 'A PCDM Collection',
+            'creator': 'test_021_pcdm.py'
+        }
+
+        MDATA3 = {
+            'title': 'A PCDM Object',
+            'description': 'A PCDM Object',
+            'creator': 'test_021_pcdm.py'
+        }
+
+        g1 = self.repo.dc_rdf({ 'title': 'Collections' })
+            
+        collections = self.container.add_container(metadata=g1, path='collections')
+        g2 = self.repo.dc_rdf({ 'title': 'Objects' })
+        objects = self.container.add_container(metadata=g2, path='objects')
+            
+        g = self.repo.dc_rdf(MDATA2)
+        c = collections.add(pcdm.Collection(self.repo, metadata=g))
+        self.assertIsNotNone(c)
+        coll_uri = c.uri
+
+        obj_uris = []
+        for i in range(0, 6):
+            md = MDATA3
+            md['title'] += ' ' + str(i)
+            g = self.repo.dc_rdf(md)
+            o = pcdm.Object(self.repo, metadata=g, isMemberOf=c)
+            objects.add(o)
+            obj_uris.append(o.uri)
+
+        # this has created memberships on the objects, not the collection.
+        for uri in obj_uris:
+            o = self.repo.get(uri)
+            self.assertIsNotNone(o)
+            ms = list(o.memberships())
+            self.assertEqual(str(ms[0]), coll_uri)
+
+        # add links from the collection to each of the objects
+
+        for uri in obj_uris:
+            o = self.repo.get(uri)
+            c.has_member(o)
+
+        # now we can find objects using the members method
+
+        members = [ str(m) for m in c.members() ]
+
+        self.repo.logger.warning(members)
+        for uri in obj_uris:
+            self.assertTrue(uri in members)
+        
 
 
                 

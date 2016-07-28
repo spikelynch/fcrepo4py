@@ -8,7 +8,7 @@ PCDM_URI = 'http://pcdm.org/models#'
 PCDM = Namespace(PCDM_URI)
 
 
-class PCMDError(Error):
+class PCDMError(Error):
     """Exception class for PCDM-specific errors"""
 
 
@@ -62,8 +62,8 @@ class PCDMResource(Resource):
     def _add_rel(self, rel, subject):
         """Create a relation, after checking that it's allowed."""
         self._check_rel(rel, subject)
-        self.rdf_add(PCDM[rel], subject.uri)
-        self.rdf_write
+        self.rdf_add(PCDM[rel], URIRef(subject.uri))
+        self.rdf_write()
 
     def is_member_of(self, subject):
         """Create a pcdm:isMemberOf link"""  
@@ -94,7 +94,7 @@ class PCDMResource(Resource):
         """General method for returning lists of related objects"""
         return self.rdf.objects(
             subject=URIRef(self.uri),
-            predicate=PDCM[rel]
+            predicate=PCDM[rel]
         )
 
         
