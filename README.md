@@ -1,7 +1,7 @@
 fcrepo4.py
 ==========
 
-A simple Python 3 (not Python 2!) interface to Fedora Commons 4.
+A simple Python 3 interface to Fedora Commons 4.
 
 ## Install
 
@@ -9,7 +9,7 @@ To install:
 * Get yourself into a Python 3 virtual environment
 * Get the library and install it:
 
-    git clone https://codeine.research.uts.edu.au/eresearch/fcrepo4py.git
+    git clone https://github/spikelynch/fcrepo4py.git
 
     cd fcrepo4py
   
