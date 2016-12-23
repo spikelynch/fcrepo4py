@@ -1,0 +1,21 @@
+version: '1'
+services:
+  fcrepo4:
+    image: mikelynch/fcrepo-docker:tag-webacl
+    ports:
+      - 8080:8080
+      - 8090:8090
+
+  fcrepo4py:
+    image: mikelynch/fcrepo4py
+    links:
+      - fcrepo4
+    environment:
+      - COMPONENT=py
+      - RUNSCRIPT=py
+      - SERVER_HOST=omeroserver
+      - SERVER_PORT=4064
+#    command: /home/omero/OMERO.py/bin/omero config get
+    volumes:
+      - /var/tmp/fcrepo4-tests/:/var/tmp/fcrepo4-tests/
+    command: /bin/bash /var/tmp/fcrepo4-tests/fcrepo4/docker/run-tests-in-docker.sh
