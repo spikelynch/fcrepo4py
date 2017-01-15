@@ -1,0 +1,27 @@
+###########################################################################
+######
+######  fcrepo4py client testing setup
+######
+######  requires docker on the gitlab-runner host
+######
+######  Mike Lynch for UTS eResearch 2017
+######
+###########################################################################
+
+# uses docker-compose to spin up a working fcrepo4 repository and a server
+# in which to test fcrepo4py
+
+before_script:
+  - docker info
+  - mkdir -p /var/tmp/fcrepo4py-tests/ && cd /var/tmp/fcrepo4py-tests/ && git clone https://gitlab-ci-test-runner:]sn0rk0h01[@codeine.research.uts.edu.au/eresearch/fcrepo4py.git
+  - cd -
+
+fcrepo4py_provisioner:
+  script:
+    - docker-compose -f docker/docker-compose.yml up --build --abort-on-container-exit
+    - exitcode=$(docker inspect -f '{{.State.ExitCode}}' docker_fcrepo4py_1)
+    - docker-compose -f docker/docker-compose.yml rm -fv
+    - exit $exitcode
+
+after_script:
+  - docker rm `docker ps --no-trunc -aq`

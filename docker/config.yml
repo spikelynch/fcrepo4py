@@ -1,0 +1,23 @@
+---
+# Config for docker-compose tests
+
+uri: http://fcrepo4:8080/fcrepo/
+users:
+    fedoraAdmin:
+        user: fedoraAdmin
+        password: secret3
+    user:
+        user: testuser
+        password: password1
+    alice:
+        user: alice
+        password: alice1
+    bob:
+        user: bob
+        password: bob2
+    adminuser:
+        user: adminuser
+        password: password2
+loglevel: info
+solr_uri: http://fcrepo4:8080/solr/collection1/select
+delegated: True
